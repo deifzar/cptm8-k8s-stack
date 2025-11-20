@@ -1,0 +1,151 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-katanam8
+  namespace: cptm8-dev
+data:
+  configuration_template.yaml: |
+    APP_ENV: DEV # DEV,TEST,PROD (DEV and TEST print logs in CMD screen)
+    LOG_LEVEL: "0"
+    # panic (zerolog.PanicLevel, 5)
+    # fatal (zerolog.FatalLevel, 4)
+    # error (zerolog.ErrorLevel, 3)
+    # warn (zerolog.WarnLevel, 2)
+    # info (zerolog.InfoLevel, 1)
+    # debug (zerolog.DebugLevel, 0)
+    # trace (zerolog.TraceLevel, -1)
+    ORCHESTRATORM8:
+      Services:
+        katanam8: "${KATANAM8_URL}"
+        num8: "${NUM8_URL}"
+      Exchanges:
+        cptm8: "topic" # exchange_name:exchange_type
+        notification: "topic"
+      katanam8: # service name
+        Queue:
+          - "cptm8" # exchange name
+          - "qkatanam8" # queue name
+          - 1 # prefetch count
+        Routing-keys:
+          - "cptm8.katanam8.#" # binding key
+        Queue-arguments:
+          "x-max-length": 1 # x-queue-type, x-max-length, x-max-length-bytes, x-overflow, x-message-ttl, x-expires, x-max-age, x-stream-max-segment-size-bytes, x-queue-version, x-consumer-timeout, x-single-active-consumer
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qkatanam8" # queue name
+          - "ckatanam8" # consumer name
+          - "false" # autoack
+        Publisher: # This the default published message
+          - "cptm8" # exchange
+          - "cptm8.num8.get.scan" # Routing key
+          - "katanam8" # caller service
+    KATANAM8:
+      BurpAPILocation: http://127.0.0.1:8090
+      BurpProxyLocation: http://127.0.0.1:8080
+      # URLs:
+      # Scope:
+      #   - demo.testfire.net
+      # OutOfScope: ''
+      # NoScope: true
+      DisplayOutScope: false
+      # ExtensionsMatch: ''
+      ExtensionFilter:
+        - css
+        - jpg
+        - jpeg
+        - png
+        - gif
+        - bmp
+        - ico
+        - svg
+        - tif
+        - tiff
+        - webp
+        - mp4
+        - avi
+        - pdf
+        - woff
+        - woff2
+      # OutputMatchCondition: --> it might better to only keep the match instead filter. We shouls match 200-300 status and 405 and 415 
+      OutputFilterCondition:  status_code == 301 || status_code == 302 || status_code == 304 || status_code == 307 || status_code == 400 || status_code == 404 || status_code == 415 || status_code == 500 || status_code == 502
+      MaxDepth: 10
+      # BodyReadSize: math.MaxInt --> set by default in options8.go
+      Timeout: 15 # important value to 
+      # CrawlDuration: 60 # in seconds
+      Delay: 1
+      RateLimit: 150
+      Retries: 2
+      # RateLimitMinute: 
+      Concurrency: 10
+      Parallelism: 10
+      # FormConfig:
+      # Proxy: socks5://127.0.0.1:9999
+      # Proxy: socks5://user:pass@IP_address:port
+      Strategy: depth-first
+      # Strategy: depth-first
+      FieldScope: fqdn
+      OutputFile: ./tmp/foo
+      KnownFiles: all
+      Fields:	qurl
+      # StoreFields:
+      # FieldConfig:
+      NoColors: true
+      JSON: true
+      Silent: true
+      Verbose: false
+      Version: false
+      ScrapeJSResponses: true
+      ScrapeJSLuiceResponses: true
+      CustomHeaders: 
+        - 'User-Agent: Mozilla\/5.0 (Macintosh; Intel Mac OS X 11_0_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
+      Headless: true
+      AutomaticFormFill: true
+      FormExtraction: false
+      # UseInstalledChrome skips chrome install and use local instance
+      UseInstalledChrome: true
+      ShowBrowser: false
+      # HeadlessOptionalArguments:
+      HeadlessNoSandbox: false
+      # SystemChromePath : Specify the chrome binary path for headless crawling
+      SystemChromePath: "/usr/bin/chromium-browser"
+      # ChromeWSUrl:
+      StoreResponse: false
+      # StoreResponseDir:
+      OmitRaw: false
+      OmitBody: true
+      # ChromeDataDir:
+      HeadlessNoIncognito: false
+      XhrExtraction: true
+      # HealthCheck: 
+      # ErrorLogFile:
+      # Resolvers:
+      # OutputMatchRegex:
+      # OutputFilterRegex:
+      # FilterRegex:
+      # MatchRegex:
+      DisableUpdateCheck: false # It may be better to turn it off in the future when running in production.
+      IgnoreQueryParams: false
+      # Debug:
+      # TlsImpersonate:
+      DisableRedirects: false
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        max_connections:
+        min_connections:
+        pool.max_idle_time:
+        max_lifetime:
+        health_check_period:
+        connection_timeout:
+        retry_attempts: 10
+        retry_delay: 5 # seconds

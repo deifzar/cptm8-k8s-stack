@@ -1,0 +1,23 @@
+┌─────────────────────────────────────────────────────────────────┐
+│                        Kubernetes Cluster                       │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐  │
+│  │  cptm8-prod     │  │ cptm8-staging   │  │   cptm8-dev     │  │
+│  │                 │  │                 │  │                 │  │
+│  │ Full Stack:     │  │ Full Stack:     │  │ Full Stack:     │  │
+│  │ • Frontend      │  │ • Frontend      │  │ • Frontend      │  │
+│  │ • Backend APIs  │  │ • Backend APIs  │  │ • Backend APIs  │  │
+│  │ • Databases     │  │ • Databases     │  │ • Databases     │  │
+│  │ • Message Queue │  │ • Message Queue │  │ • Message Queue │  │
+│  │ • Search        │  │ • Search        │  │ • Search        │  │
+│  │                 │  │                 │  │                 │  │
+│  │ (High Security) │  │ (Medium Sec)    │  │ (Dev Security)  │  │
+│  └─────────────────┘  └─────────────────┘  └─────────────────┘  │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │                   cptm8-monitoring                        │  │
+│  │ • Prometheus • Grafana • AlertManager • Vector            │  │
+│  │ • Centralized observability for all environments          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘

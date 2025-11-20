@@ -1,0 +1,108 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-orchestratorm8
+  namespace: cptm8-dev
+data:
+  configuration_template.yaml: |
+    APP_ENV: DEV # DEV,TEST,PROD (DEV and TEST print logs in CMD screen)
+    LOG_LEVEL: "0"
+    ORCHESTRATORM8:
+      Services:
+        asmm8: "${ASMM8_URL}"
+        naabum8: "${NAABUM8_URL}"
+        katanam8: "${KATANAM8_URL}"
+        num8: "${NUM8_URL}"
+      Exchanges:
+        cptm8: "topic" # exchange_name:exchange_type
+        scheduler: "topic"
+        notification: "topic"
+      asmm8: # API service name
+        Queue:
+          - "cptm8" # exchange_name
+          - "qasmm8" # queue_name
+          - 1 # prefetch count
+        Routing-keys:
+          - "cptm8.asmm8.#" # binding_key
+        Queue-arguments:
+          "x-max-length": 1 # x-queue-type, x-max-length, x-max-length-bytes, x-overflow, x-message-ttl, x-expires, x-max-age, x-stream-max-segment-size-bytes, x-queue-version, x-consumer-timeout, x-single-active-consumer
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qasmm8" # queue name
+          - "casmm8"  # consumer name
+          - "false" # autoack
+      naabum8:
+        Queue:
+          - cptm8
+          - qnaabum8
+          - 1
+        Routing-keys:
+          - cptm8.naabum8.#
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qnaabum8"
+          - "cnaabum8"
+          - "false"
+      katanam8:
+        Queue:
+          - cptm8
+          - qkatanam8
+          - 1
+        Routing-keys:
+          - cptm8.katanam8.#
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qkatanam8"
+          - "ckatanam8"
+          - "false"
+      num8:
+        Queue:
+          - cptm8
+          - qnum8
+          - 1
+        Routing-keys:
+          - cptm8.qnum8.#
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qnum8"
+          - "cnum8"
+          - "false"
+      reportingm8:
+        Queue:
+          - scheduler
+          - qreportingm8
+          - 1
+        Routing-keys:
+          - scheduler.qreportingm8.#
+        Queue-arguments:
+        Consumer:
+          - "qreportingm8"
+          - "creportingm8"
+          - "false"
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        max_connections:
+        min_connections:
+        pool.max_idle_time:
+        max_lifetime:
+        health_check_period:
+        connection_timeout:
+        retry_attempts: 10
+        retry_delay: 5 # seconds

@@ -1,0 +1,952 @@
+# PostgreSQL initialization scripts ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgresql-init-scripts
+  namespace: cptm8-dev
+data:
+  10-init.sh: |
+    #!/bin/bash
+    set -e
+
+    # Create the application non-root user
+    echo "Creating user ${POSTGRESQL_NON_ROOT_USERNAME}..."
+    psql -v ON_ERROR_STOP=1 --username "postgres" --dbname "$POSTGRES_DB" <<-EOSQL
+        CREATE USER ${POSTGRESQL_NON_ROOT_USERNAME} WITH PASSWORD '${POSTGRES_NON_ROOT_PASSWORD}';
+        GRANT ALL PRIVILEGES ON DATABASE $POSTGRES_DB TO ${POSTGRESQL_NON_ROOT_USERNAME};
+    EOSQL
+
+    echo "User ${POSTGRESQL_NON_ROOT_USERNAME} created successfully"
+  20-init.sql: |
+    --
+    -- PostgreSQL database dump
+    --
+
+    -- Dumped from database version 15.13 (Ubuntu 15.13-1.pgdg22.04+1)
+    -- Dumped by pg_dump version 15.13 (Ubuntu 15.13-1.pgdg22.04+1)
+
+    SET statement_timeout = 0;
+    SET lock_timeout = 0;
+    SET idle_in_transaction_session_timeout = 0;
+    SET client_encoding = 'UTF8';
+    SET standard_conforming_strings = on;
+    SELECT pg_catalog.set_config('search_path', '', false);
+    SET check_function_bodies = false;
+    SET xmloption = content;
+    SET client_min_messages = warning;
+    SET row_security = off;
+
+    --
+    -- Name: public; Type: SCHEMA; Schema: -; Owner: postgres
+    --
+
+    -- *not* creating schema, since initdb creates it
+
+
+    ALTER SCHEMA public OWNER TO postgres;
+
+    --
+    -- Name: uuid-ossp; Type: EXTENSION; Schema: -; Owner: -
+    --
+
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA public;
+
+
+    --
+    -- Name: EXTENSION "uuid-ossp"; Type: COMMENT; Schema: -; Owner: 
+    --
+
+    COMMENT ON EXTENSION "uuid-ossp" IS 'generate universally unique identifiers (UUIDs)';
+
+
+    --
+    -- Name: notificationtype; Type: TYPE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TYPE public.notificationtype AS ENUM (
+        'message',
+        'security',
+        'system_error',
+        'system_warning'
+    );
+
+
+    ALTER TYPE public.notificationtype OWNER TO cpt_dbuser;
+
+    --
+    -- Name: statustype; Type: TYPE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TYPE public.statustype AS ENUM (
+        'U',
+        'V',
+        'I',
+        'FP',
+        'R'
+    );
+
+
+    ALTER TYPE public.statustype OWNER TO cpt_dbuser;
+
+    --
+    -- Name: timebasetype; Type: TYPE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TYPE public.timebasetype AS ENUM (
+        'weekly',
+        'monthly',
+        'yearly'
+    );
+
+
+    ALTER TYPE public.timebasetype OWNER TO cpt_dbuser;
+
+    --
+    -- Name: usertype; Type: TYPE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TYPE public.usertype AS ENUM (
+        'admin',
+        'user'
+    );
+
+
+    ALTER TYPE public.usertype OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cleanup_cptm8historyissue_batch(); Type: FUNCTION; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE FUNCTION public.cleanup_cptm8historyissue_batch() RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+    DECLARE
+        record_count INTEGER;
+        cleanup_threshold INTEGER := 1000; -- Adjust based on your volume
+        random_check INTEGER;
+    BEGIN
+        -- Get approximate row count (faster than exact count)
+        SELECT reltuples::INTEGER 
+        INTO record_count
+        FROM pg_class 
+        WHERE relname = 'cptm8historyissue';
+        
+        -- Only consider cleanup if table is getting large
+        IF record_count > cleanup_threshold THEN
+            -- Random trigger: 1 in 500 chance (0.2%)
+            SELECT floor(random() * 500 + 1)::INTEGER INTO random_check;
+            
+            IF random_check = 1 THEN
+                -- Batch delete old records (limit for performance)
+                DELETE FROM cptm8historyissue 
+                WHERE firsttimefound < NOW() - INTERVAL '3 months'
+                AND id IN (
+                    SELECT id 
+                    FROM cptm8historyissue 
+                    WHERE firsttimefound < NOW() - INTERVAL '3 months' AND (status = 'U' OR status = 'I' OR  status = 'FP')
+                    LIMIT 500  -- Delete max 500 at a time
+                );
+                
+                GET DIAGNOSTICS record_count = ROW_COUNT;
+                
+                IF record_count > 0 THEN
+                    RAISE NOTICE 'Batch cleanup: Deleted % old cptm8historyissue records', record_count;
+                END IF;
+            END IF;
+        END IF;
+        
+        RETURN NEW;
+    END;
+    $$;
+
+
+    ALTER FUNCTION public.cleanup_cptm8historyissue_batch() OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cleanup_cptm8notifications_batch(); Type: FUNCTION; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE FUNCTION public.cleanup_cptm8notifications_batch() RETURNS trigger
+        LANGUAGE plpgsql
+        AS $$
+    DECLARE
+        notification_count INTEGER;
+    BEGIN
+        -- Check current count for this user
+        SELECT COUNT(*) INTO notification_count 
+        FROM cptm8notifications 
+        WHERE userid = NEW.userid;
+        
+        -- Only cleanup if we exceed 100 (gives buffer to avoid constant cleanup)
+        -- Delete excess notifications for the user, keeping only the latest 100
+        IF notification_count > 100 THEN
+            DELETE FROM cptm8notifications 
+            WHERE userid = NEW.userid 
+            AND id NOT IN (
+                SELECT id 
+                FROM cptm8notifications 
+                WHERE userid = NEW.userid 
+                ORDER BY created_at DESC 
+                LIMIT 100
+            );
+        END IF;
+        
+        RETURN NEW;
+    END;
+    $$;
+
+
+    ALTER FUNCTION public.cleanup_cptm8notifications_batch() OWNER TO cpt_dbuser;
+
+    SET default_tablespace = '';
+
+    SET default_table_access_method = heap;
+
+    --
+    -- Name: account; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.account (
+        "userId" text NOT NULL,
+        type text NOT NULL,
+        provider text NOT NULL,
+        "providerAccountId" text NOT NULL,
+        refresh_token text,
+        access_token text,
+        expires_at integer,
+        token_type text,
+        scope text,
+        id_token text,
+        session_state text,
+        "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+    );
+
+
+    ALTER TABLE public.account OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8domain; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8domain (
+        name character varying(200) NOT NULL,
+        companyname character varying(50),
+        enabled boolean DEFAULT true NOT NULL,
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8domain OWNER TO cpt_dbuser;
+
+    --
+    -- Name: COLUMN cptm8domain.enabled; Type: COMMENT; Schema: public; Owner: cpt_dbuser
+    --
+
+    COMMENT ON COLUMN public.cptm8domain.enabled IS 'This column tells if the domain is available for scan.';
+
+
+    --
+    -- Name: cptm8endpoint; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8endpoint (
+        endpoint character varying(255) NOT NULL,
+        live boolean,
+        hostnameid uuid NOT NULL,
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8endpoint OWNER TO cpt_dbuser;
+
+    --
+    -- Name: TABLE cptm8endpoint; Type: COMMENT; Schema: public; Owner: cpt_dbuser
+    --
+
+    COMMENT ON TABLE public.cptm8endpoint IS 'Column ''endpoint'' value does not finish with a slash ''/''
+    u.Scheme + "://" + u.Host + ":" + u.Port';
+
+
+    --
+    -- Name: cptm8generalscansettings; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8generalscansettings (
+        settings jsonb NOT NULL,
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8generalscansettings OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8historyissue; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8historyissue (
+        issue jsonb NOT NULL,
+        url text NOT NULL,
+        signature character varying(128) NOT NULL,
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+        endpointid uuid NOT NULL,
+        status public.statustype DEFAULT 'U'::public.statustype NOT NULL,
+        firsttimefound timestamp with time zone NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8historyissue OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8hostname; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8hostname (
+        name character varying(200) NOT NULL,
+        foundfirsttime timestamp with time zone NOT NULL,
+        live boolean,
+        enabled boolean DEFAULT true NOT NULL,
+        domainid uuid NOT NULL,
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8hostname OWNER TO cpt_dbuser;
+
+    --
+    -- Name: COLUMN cptm8hostname.name; Type: COMMENT; Schema: public; Owner: cpt_dbuser
+    --
+
+    COMMENT ON COLUMN public.cptm8hostname.name IS 'This value is either a FQDN or an IP address.
+    The value is only an IP address when using the web interface, the user adds the hostname as an IP address manually.
+    Otherwise, CPTm8 will find hostnames and populate this table automatically.';
+
+
+    --
+    -- Name: COLUMN cptm8hostname.enabled; Type: COMMENT; Schema: public; Owner: cpt_dbuser
+    --
+
+    COMMENT ON COLUMN public.cptm8hostname.enabled IS 'this tells if the hostname is available for scan.';
+
+
+    --
+    -- Name: cptm8hostnameinfo; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8hostnameinfo (
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+        software text[],
+        notes text,
+        hostnameid uuid NOT NULL,
+        port integer NOT NULL,
+        protocol character varying(10) NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8hostnameinfo OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8notifications; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8notifications (
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+        userid text,
+        message text NOT NULL,
+        metadata jsonb,
+        read boolean DEFAULT false NOT NULL,
+        created_at timestamp with time zone NOT NULL,
+        userrole public.usertype,
+        type public.notificationtype NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8notifications OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8report; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8report (
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+        nvul integer NOT NULL,
+        ndomain integer NOT NULL,
+        nhostname integer NOT NULL,
+        nservice integer NOT NULL,
+        ntech integer NOT NULL,
+        release timestamp with time zone NOT NULL,
+        link character varying(800) NOT NULL,
+        ncritical integer NOT NULL,
+        nhigh integer NOT NULL,
+        nmedium integer NOT NULL,
+        nlow integer NOT NULL,
+        ninfo integer NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8report OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8reportschedulingsettings; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8reportschedulingsettings (
+        settings jsonb NOT NULL,
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8reportschedulingsettings OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8riskconsequence; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8riskconsequence (
+        name character varying(20) NOT NULL,
+        id bigint NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8riskconsequence OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8risklevel; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8risklevel (
+        name character varying(20) NOT NULL,
+        id bigint NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8risklevel OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8risklikelihood; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8risklikelihood (
+        name character varying(20) NOT NULL,
+        id bigint NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8risklikelihood OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8riskstrategy; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8riskstrategy (
+        name character varying(20) NOT NULL,
+        id bigint NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8riskstrategy OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8service; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8service (
+        protocol character varying(10) NOT NULL,
+        service character varying(30),
+        port integer NOT NULL,
+        tls boolean,
+        live boolean NOT NULL,
+        ipaddress character varying(255),
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+        hostnameid uuid NOT NULL
+    );
+
+
+    ALTER TABLE public.cptm8service OWNER TO cpt_dbuser;
+
+    --
+    -- Name: cptm8vulnerability; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.cptm8vulnerability (
+        title character varying(100) NOT NULL,
+        foundfirsttime timestamp with time zone NOT NULL,
+        definition jsonb,
+        location jsonb,
+        description jsonb,
+        impact jsonb,
+        reproductionsteps jsonb,
+        mitigation jsonb,
+        endpointid uuid NOT NULL,
+        id uuid DEFAULT public.uuid_generate_v4() NOT NULL,
+        risklevel bigint NOT NULL,
+        riskconsequence bigint NOT NULL,
+        risklikelihood bigint NOT NULL,
+        riskstrategy bigint NOT NULL,
+        definitionhtml text,
+        locationhtml text,
+        descriptionhtml text,
+        impacthtml text,
+        reproductionstepshtml text,
+        mitigationhtml text,
+        riskowner text
+    );
+
+
+    ALTER TABLE public.cptm8vulnerability OWNER TO cpt_dbuser;
+
+    --
+    -- Name: record_count; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.record_count (
+        reltuples integer
+    );
+
+
+    ALTER TABLE public.record_count OWNER TO cpt_dbuser;
+
+    --
+    -- Name: user; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public."user" (
+        id text DEFAULT public.uuid_generate_v4() NOT NULL,
+        name text NOT NULL,
+        email text NOT NULL,
+        password text,
+        "emailVerified" timestamp(3) without time zone,
+        image text,
+        role public.usertype DEFAULT 'admin'::public.usertype NOT NULL,
+        "createdAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        "updatedAt" timestamp(3) without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
+        jobtitle text,
+        phone text,
+        bio text,
+        report boolean DEFAULT false NOT NULL,
+        colour smallint NOT NULL
+    );
+
+
+    ALTER TABLE public."user" OWNER TO cpt_dbuser;
+
+    --
+    -- Name: user_colour_seq; Type: SEQUENCE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE SEQUENCE public.user_colour_seq
+        AS smallint
+        START WITH 1
+        INCREMENT BY 1
+        NO MINVALUE
+        NO MAXVALUE
+        CACHE 1;
+
+
+    ALTER TABLE public.user_colour_seq OWNER TO cpt_dbuser;
+
+    --
+    -- Name: user_colour_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER SEQUENCE public.user_colour_seq OWNED BY public."user".colour;
+
+
+    --
+    -- Name: verificationtoken; Type: TABLE; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TABLE public.verificationtoken (
+        identifier text NOT NULL,
+        token text NOT NULL,
+        expires timestamp(3) without time zone NOT NULL
+    );
+
+
+    ALTER TABLE public.verificationtoken OWNER TO cpt_dbuser;
+
+    --
+    -- Name: user colour; Type: DEFAULT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public."user" ALTER COLUMN colour SET DEFAULT nextval('public.user_colour_seq'::regclass);
+
+
+    --
+    -- Name: cptm8domain CPTM8_domain_name_unique; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8domain
+        ADD CONSTRAINT "CPTM8_domain_name_unique" UNIQUE (name);
+
+
+    --
+    -- Name: cptm8hostname CPTM8_hostname_name_unique; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8hostname
+        ADD CONSTRAINT "CPTM8_hostname_name_unique" UNIQUE (name);
+
+
+    --
+    -- Name: account account_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.account
+        ADD CONSTRAINT account_pkey PRIMARY KEY (provider, "providerAccountId");
+
+
+    --
+    -- Name: cptm8domain cptm8domain_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8domain
+        ADD CONSTRAINT cptm8domain_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8endpoint cptm8endpoint_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8endpoint
+        ADD CONSTRAINT cptm8endpoint_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8historyissue cptm8historyissue_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8historyissue
+        ADD CONSTRAINT cptm8historyissue_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8hostname cptm8hostname_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8hostname
+        ADD CONSTRAINT cptm8hostname_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8hostnameinfo cptm8hostnameinfo_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8hostnameinfo
+        ADD CONSTRAINT cptm8hostnameinfo_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8notifications cptm8notifications_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8notifications
+        ADD CONSTRAINT cptm8notifications_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8report cptm8report_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8report
+        ADD CONSTRAINT cptm8report_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8riskconsequence cptm8riskconsequence_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8riskconsequence
+        ADD CONSTRAINT cptm8riskconsequence_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8risklevel cptm8risklevel_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8risklevel
+        ADD CONSTRAINT cptm8risklevel_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8risklikelihood cptm8risklikelihood_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8risklikelihood
+        ADD CONSTRAINT cptm8risklikelihood_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8riskstrategy cptm8riskstrategy_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8riskstrategy
+        ADD CONSTRAINT cptm8riskstrategy_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8service cptm8service_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8service
+        ADD CONSTRAINT cptm8service_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8vulnerability cptm8vulnerability_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT cptm8vulnerability_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8generalscansettings generalscansettings_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8generalscansettings
+        ADD CONSTRAINT generalscansettings_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8reportschedulingsettings reportschedulingsettings_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8reportschedulingsettings
+        ADD CONSTRAINT reportschedulingsettings_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: cptm8notifications uniq_notifications; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8notifications
+        ADD CONSTRAINT uniq_notifications UNIQUE NULLS NOT DISTINCT (userid, message, read, userrole, metadata);
+
+
+    --
+    -- Name: cptm8endpoint unique_endpoint; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8endpoint
+        ADD CONSTRAINT unique_endpoint UNIQUE (endpoint);
+
+
+    --
+    -- Name: cptm8hostnameinfo unique_hostnameinfo; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8hostnameinfo
+        ADD CONSTRAINT unique_hostnameinfo UNIQUE (hostnameid, port, protocol);
+
+
+    --
+    -- Name: cptm8historyissue unique_issue_url; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8historyissue
+        ADD CONSTRAINT unique_issue_url UNIQUE (signature);
+
+
+    --
+    -- Name: cptm8service unique_service; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8service
+        ADD CONSTRAINT unique_service UNIQUE (protocol, port, ipaddress, hostnameid);
+
+
+    --
+    -- Name: cptm8vulnerability unique_vulnerability; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT unique_vulnerability UNIQUE (title, endpointid);
+
+
+    --
+    -- Name: user user_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public."user"
+        ADD CONSTRAINT user_pkey PRIMARY KEY (id);
+
+
+    --
+    -- Name: verificationtoken verificationtoken_pkey; Type: CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.verificationtoken
+        ADD CONSTRAINT verificationtoken_pkey PRIMARY KEY (identifier, token);
+
+
+    --
+    -- Name: CPTM8_hostname_name_6214bbf5_like; Type: INDEX; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE INDEX "CPTM8_hostname_name_6214bbf5_like" ON public.cptm8hostname USING btree (name varchar_pattern_ops);
+
+
+    --
+    -- Name: idx_cptm8historyissue_firsttimefound; Type: INDEX; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE INDEX idx_cptm8historyissue_firsttimefound ON public.cptm8historyissue USING btree (firsttimefound);
+
+
+    --
+    -- Name: user_email_key; Type: INDEX; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE UNIQUE INDEX user_email_key ON public."user" USING btree (email);
+
+
+    --
+    -- Name: cptm8historyissue trigger_cleanup_cptm8historyissue; Type: TRIGGER; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TRIGGER trigger_cleanup_cptm8historyissue AFTER INSERT ON public.cptm8historyissue FOR EACH ROW EXECUTE FUNCTION public.cleanup_cptm8historyissue_batch();
+
+
+    --
+    -- Name: cptm8notifications trigger_cleanup_cptm8notifications; Type: TRIGGER; Schema: public; Owner: cpt_dbuser
+    --
+
+    CREATE TRIGGER trigger_cleanup_cptm8notifications AFTER INSERT ON public.cptm8notifications FOR EACH ROW EXECUTE FUNCTION public.cleanup_cptm8notifications_batch();
+
+
+    --
+    -- Name: account account_userId_fkey; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.account
+        ADD CONSTRAINT "account_userId_fkey" FOREIGN KEY ("userId") REFERENCES public."user"(id) ON UPDATE CASCADE ON DELETE CASCADE;
+
+
+    --
+    -- Name: cptm8hostname fk_domainid; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8hostname
+        ADD CONSTRAINT fk_domainid FOREIGN KEY (domainid) REFERENCES public.cptm8domain(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8historyissue fk_historyendpoint; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8historyissue
+        ADD CONSTRAINT fk_historyendpoint FOREIGN KEY (endpointid) REFERENCES public.cptm8endpoint(id) DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8endpoint fk_hostnameid; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8endpoint
+        ADD CONSTRAINT fk_hostnameid FOREIGN KEY (hostnameid) REFERENCES public.cptm8hostname(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8hostnameinfo fk_hostnameidinfo; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8hostnameinfo
+        ADD CONSTRAINT fk_hostnameidinfo FOREIGN KEY (hostnameid) REFERENCES public.cptm8hostname(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8notifications fk_notifications_userid; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8notifications
+        ADD CONSTRAINT fk_notifications_userid FOREIGN KEY (userid) REFERENCES public."user"(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8vulnerability fk_riskconsequence; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT fk_riskconsequence FOREIGN KEY (riskconsequence) REFERENCES public.cptm8riskconsequence(id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8vulnerability fk_risklevel; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT fk_risklevel FOREIGN KEY (risklevel) REFERENCES public.cptm8risklevel(id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8vulnerability fk_risklikelihood; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT fk_risklikelihood FOREIGN KEY (risklikelihood) REFERENCES public.cptm8risklikelihood(id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8vulnerability fk_riskowner; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT fk_riskowner FOREIGN KEY (riskowner) REFERENCES public."user"(id) ON UPDATE CASCADE ON DELETE SET NULL DEFERRABLE INITIALLY DEFERRED NOT VALID;
+
+
+    --
+    -- Name: cptm8vulnerability fk_riskstrategy; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT fk_riskstrategy FOREIGN KEY (riskstrategy) REFERENCES public.cptm8riskstrategy(id) ON UPDATE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8service fk_service_hostname; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8service
+        ADD CONSTRAINT fk_service_hostname FOREIGN KEY (hostnameid) REFERENCES public.cptm8hostname(id) ON UPDATE CASCADE ON DELETE CASCADE DEFERRABLE INITIALLY DEFERRED;
+
+
+    --
+    -- Name: cptm8vulnerability fk_vulnerability_endpoint; Type: FK CONSTRAINT; Schema: public; Owner: cpt_dbuser
+    --
+
+    ALTER TABLE ONLY public.cptm8vulnerability
+        ADD CONSTRAINT fk_vulnerability_endpoint FOREIGN KEY (endpointid) REFERENCES public.cptm8endpoint(id) ON UPDATE CASCADE ON DELETE CASCADE NOT VALID;
+
+
+    --
+    -- Name: SCHEMA public; Type: ACL; Schema: -; Owner: postgres
+    --
+
+    REVOKE USAGE ON SCHEMA public FROM PUBLIC;
+    GRANT ALL ON SCHEMA public TO PUBLIC;
+    GRANT ALL ON SCHEMA public TO cpt_dbuser;
+
+
+    --
+    -- PostgreSQL database dump complete
+    --
+  30-init.sh: |
+    #!/bin/bash
+    set -e
+
+    # Grant privileges to application user after schema is created
+    echo "Granting privileges to ${POSTGRESQL_NON_ROOT_USERNAME}..."
+    psql -v ON_ERROR_STOP=1 --username "postgres" --dbname "$POSTGRES_DB" <<-EOSQL
+        GRANT ALL PRIVILEGES ON SCHEMA public TO ${POSTGRESQL_NON_ROOT_USERNAME};
+        GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO ${POSTGRESQL_NON_ROOT_USERNAME};
+        GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO ${POSTGRESQL_NON_ROOT_USERNAME};
+        GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO ${POSTGRESQL_NON_ROOT_USERNAME};
+
+        -- Grant default privileges for future objects
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO ${POSTGRESQL_NON_ROOT_USERNAME};
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO ${POSTGRESQL_NON_ROOT_USERNAME};
+        ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO ${POSTGRESQL_NON_ROOT_USERNAME};
+    EOSQL
+
+    echo "PostgreSQL initialization completed successfully"

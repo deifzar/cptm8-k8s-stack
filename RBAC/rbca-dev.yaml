@@ -1,0 +1,88 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: cptm8-dev
+  name: cptm8-dev-developer
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-team-dev
+  namespace: cptm8-dev
+subjects:
+- kind: User
+  name: dev-team
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: cptm8-dev-developer
+  apiGroup: rbac.authorization.k8s.io
+---
+# Service Account for Vector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector-sa
+  namespace: cptm8-dev
+---
+# Service Account for AWS ECR
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ecr-token-refresher
+  namespace: cptm8-dev
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ecr-token-refresher
+  namespace: cptm8-dev
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecr-token-refresher-binding
+  namespace: cptm8-dev
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: ecr-token-refresher
+subjects:
+- kind: ServiceAccount
+  name: ecr-token-refresher
+  namespace: cptm8-dev
+---
+# ClusterRole for Vector (if needed for log collection)
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector-logs
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+---
+# ClusterRoleBinding for Vector
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector-logs-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector-logs
+subjects:
+- kind: ServiceAccount
+  name: vector-sa
+  namespace: cptm8-dev

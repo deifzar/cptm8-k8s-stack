@@ -1,0 +1,24 @@
+# OpenSearch Configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opensearch-config
+  namespace: cptm8-dev
+data:
+  internal_users.yml: |
+    ---
+    _meta:
+      type: "internalusers"
+      config_version: 2
+
+    admin:
+      hash: "$2a$adminhash"
+      reserved: true
+      backend_roles:
+      - "admin"
+      description: "Demo admin user"
+
+    kibanaserver:
+      hash: "$2a$kibanaserverhash"
+      reserved: true
+      description: "Demo kibanaserver user"

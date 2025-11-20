@@ -1,0 +1,97 @@
+# deployments/rabbitmq-dev.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: rabbitmq
+  namespace: cptm8-dev
+  labels:
+    app: rabbitmq
+    environment: development
+    tier: messaging
+spec:
+  serviceName: rabbitmq-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+        environment: development
+        tier: messaging
+    spec:
+      containers:
+      - name: rabbitmq
+        image: rabbitmq:3.12-management-alpine
+        ports:
+        - containerPort: 5672
+          name: amqp
+        - containerPort: 15672
+          name: management
+        volumeMounts:
+        - name: rabbitmq-vct
+          mountPath: /var/lib/rabbitmq
+        env:
+        - name: RABBITMQ_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: RABBITMQ_HOSTNAME
+        # Secret references
+        - name: RABBITMQ_DEFAULT_USER
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secrets
+              key: rabbitmq-username
+        - name: RABBITMQ_DEFAULT_PASS
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secrets
+              key: rabbitmq-password
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          exec:
+            command:
+            - rabbitmq-diagnostics
+            - -q
+            - ping
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 6  # Allow 6 failures before restart (3 minutes)
+        readinessProbe:
+          exec:
+            command:
+            - rabbitmq-diagnostics
+            - -q
+            - check_port_connectivity
+          initialDelaySeconds: 20
+          periodSeconds: 10
+          timeoutSeconds: 10  # Increased from 5s to allow for busy periods
+          failureThreshold: 3  # Mark unready after 3 failures (30s)
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 10001
+  volumeClaimTemplates:
+  - metadata:
+      name: rabbitmq-vct
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: cptm8-dev-ssd-retain
+      resources:
+        requests:
+          storage: 10Gi

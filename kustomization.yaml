@@ -1,0 +1,79 @@
+# Kustomization file for ordered deployment
+# Deploy with: kubectl apply -k .
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cptm8-dev
+
+# Resources deployed in order (top to bottom)
+resources:
+  # 1. RBAC (ServiceAccounts, Roles, RoleBindings - must be first)
+  - RBAC/rbca-dev.yaml
+
+  # 2. Storage and Configuration
+  - storage/storageclass-dev.yaml
+  - storage/pv-shared-logs-dev.yaml
+
+  # 3. ConfigMaps (configuration and scripts)
+  - configmaps/config-dev.yaml
+  - configmaps/postgresql-init-scripts-dev.yaml
+  - configmaps/opensearch-config-dev.yaml
+  - configmaps/vector-config-dev.yaml
+  # Application configuration templates
+  - configmaps/configuration-template-orchestratorm8-dev.yaml
+  - configmaps/configuration-template-asmm8-dev.yaml
+  - configmaps/configuration-template-naabum8-dev.yaml
+  - configmaps/configuration-template-katanam8-dev.yaml
+  - configmaps/configuration-template-num8-dev.yaml
+  - configmaps/configuration-template-reportingm8-dev.yaml
+  # Docker entrypoint overrides for Kubernetes
+  - configmaps/docker-entrypoint-backend-dev.yaml
+  - configmaps/docker-entrypoint-dashboardm8-dev.yaml
+  - configmaps/docker-entrypoint-socketm8-dev.yaml
+
+  # 4. Services (before deployments)
+  - services/services-dev.yaml
+
+  # 5. Infrastructure databases (foundation)
+  - deployments/postgresql-dev.yaml
+  - deployments/rabbitmq-dev.yaml
+  - deployments/mongodb-dev.yaml
+
+  # 6. Search infrastructure
+  - deployments/opensearch-dev.yaml
+
+  # 7. Backend application services (depend on databases)
+  - deployments/asmm8-dev.yaml
+  - deployments/naabum8-dev.yaml
+  - deployments/katanam8-dev.yaml
+  - deployments/num8-dev.yaml
+  - deployments/orchestratorm8-dev.yaml
+  - deployments/reportingm8-dev.yaml
+
+  # 8. Frontend applications (depend on backend services)
+  - deployments/dashboardm8-dev.yaml
+  - deployments/socketm8-dev.yaml
+
+  # 9. Logging and monitoring (last)
+  - deployments/vector-dev.yaml
+
+  # 10. CronJobs (periodic tasks)
+  - jobs/cronjob-dev.yaml
+
+  # Note: MongoDB init job (jobs/mongodb-init-job-dev.yaml) is run MANUALLY after MongoDB deployment
+  # Run with: kubectl apply -f jobs/mongodb-init-job-dev.yaml
+  # This job initializes the replica set, creates admin user, and application database/user
+  # It only needs to run once per cluster setup
+
+# Common labels applied to all resources
+labels:
+  - pairs:
+      environment: development
+      project: cptm8
+    includeSelectors: true
+  
+# Common annotations for better resource management
+commonAnnotations:
+  deployed-by: kustomize
+  documentation: "See DEPLOYMENT-GUIDE.md for usage instructions"

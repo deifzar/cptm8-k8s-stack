@@ -1,0 +1,188 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboardm8
+  namespace: cptm8-dev
+  labels:
+    app: dashboardm8
+    environment: development
+    tier: application
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dashboardm8
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: dashboardm8
+        environment: development
+        tier: application
+        component: frontend
+    spec:
+      # ECR authentication for private images
+      imagePullSecrets:
+      - name: ecr-registry-secret
+      containers:
+        - name: dashboardm8
+          image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-frontend/dashboardm8-dev
+          env:
+          - name: NODE_ENV
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: NODE_ENV
+          - name: DASHBOARDM8_HOSTNAME
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: DASHBOARDM8_HOSTNAME
+          - name: PORT
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: DASHBOARDM8_PORT
+          - name: POSTGRESQL_HOSTNAME
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: POSTGRESQL_HOSTNAME
+          - name: SMTP_SERVER
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: SMTP_SERVER
+          - name: SMTP_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: SMTP_PORT
+          - name: SMTP_EMAILSENDER
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: SMTP_EMAILSENDER
+          - name: CLOUD_PROVIDER
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: CLOUD_PROVIDER
+          - name: NEXT_DASHBOARD_URL
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: NEXT_DASHBOARD_URL
+          - name: USER_EMAIL_DOMAIN
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: USER_EMAIL_DOMAIN
+          # AuthJS/NextAuth URL configuration
+          - name: AUTH_URL
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: AUTH_URL
+          - name: NEXTAUTH_URL
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: NEXTAUTH_URL
+          # Secret references
+          - name: PPG_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: postgresql-secrets
+                key: postgresql-database-url
+          - name: PMG_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: mongodb-secrets
+                key: mongodb-database-url
+          - name: AUTH_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: application-secrets
+                key: auth-secret
+          - name: GOOGLE_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: google-secrets
+                key: google-client-id
+          - name: GOOGLE_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: google-secrets
+                key: google-client-secret
+          - name: SMTP_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: smtp-secrets
+                key: smtp-username
+          - name: SMTP_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: smtp-secrets
+                key: smtp-password
+          - name: AWS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: aws-secrets
+                key: aws-key
+          - name: AWS_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: aws-secrets
+                key: aws-secret
+          ports:
+          - containerPort: 3000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /signin
+              port: 3000
+            initialDelaySeconds: 180    
+            periodSeconds: 5           # Check every 5 seconds
+            timeoutSeconds: 3          # 3 second timeout
+            successThreshold: 1        # 1 success to mark ready
+            failureThreshold: 3        # 3 failures to mark not ready
+          readinessProbe:
+            httpGet:
+              path: /signin
+              port: 3000
+            initialDelaySeconds: 180
+            periodSeconds: 5           # Check every 5 seconds
+            timeoutSeconds: 3          # 3 second timeout
+            successThreshold: 1        # 1 success to mark ready
+            failureThreshold: 3        # 3 failures to mark not ready
+           # Add security context for consistency
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001  # Matches nextjs user in Dockerfile
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false  # Next.js needs write access for builds
+            capabilities:
+              drop:
+              - ALL
+          volumeMounts:
+          # Override docker-entrypoint.sh with Kubernetes-compatible version
+          - name: entrypoint-override
+            mountPath: /usr/local/bin/docker-entrypoint.sh
+            subPath: docker-entrypoint.sh
+            readOnly: true
+      volumes:
+      # ConfigMap with Kubernetes-compatible docker-entrypoint.sh
+      - name: entrypoint-override
+        configMap:
+          name: docker-entrypoint-dashboardm8-frontend
+          defaultMode: 0755  # Make script executable
+      securityContext:
+        fsGroup: 1001  # Match nextjs user in Dockerfile

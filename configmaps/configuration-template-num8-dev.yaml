@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-num8
+  namespace: cptm8-dev
+data:
+  configuration_template.yaml: |
+    APP_ENV: DEV # DEV,TEST,PROD (DEV and TEST print logs in CMD screen)
+    LOG_LEVEL: "0"
+    # panic (zerolog.PanicLevel, 5)
+    # fatal (zerolog.FatalLevel, 4)
+    # error (zerolog.ErrorLevel, 3)
+    # warn (zerolog.WarnLevel, 2)
+    # info (zerolog.InfoLevel, 1)
+    # debug (zerolog.DebugLevel, 0)
+    # trace (zerolog.TraceLevel, -1)
+    ORCHESTRATORM8:
+      Services:
+          num8: "${NUM8_URL}"
+          asmm8: "${ASMM8_URL}"
+      Exchanges:
+        cptm8: "topic" # exchange_name:exchange_type
+        notification: "topic"
+      num8: # service name
+        Queue:
+          - "cptm8" # exchange name
+          - "qnum8" # queue name
+          - 1 # prefetch count
+        Routing-keys:
+          - "cptm8.num8.#" # binding key
+        Queue-arguments:
+          "x-max-length": 1 # x-queue-type, x-max-length, x-max-length-bytes, x-overflow, x-message-ttl, x-expires, x-max-age, x-stream-max-segment-size-bytes, x-queue-version, x-consumer-timeout, x-single-active-consumer
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qnum8" # queue name
+          - "cnum8" # consumer name
+          - "false" # autoack
+          - "apicall" # handle type: apicall or notification
+        Publisher: # This the default published message
+          - "cptm8" # exchange
+          - "cptm8.asmm8.get.scan" # Routing key
+          - "num8" # caller service
+    # NUM8 configurations
+    NUM8:
+      BurpAPILocation: http://127.0.0.1:8090
+      BurpProxyLocation: http://127.0.0.1:8080
+      # proxy: socks5://user:pass@IP_address:port
+      Sitemap:
+        Filter:
+          StatusCode:
+            - "301"
+            - "302"
+            - "304"
+            - "307"
+            - "400"
+            - "404"
+            - "415"
+            - "500"
+            - "502"
+          ContentType:
+          - "Content-Type: image/x-icon"
+          - "Content-Type: image/bmp"
+          - "Content-Type: image/gif"
+          - "Content-Type: image/vnd.microsoft.icon"
+          - "Content-Type: image/jpeg"
+          - "Content-Type: image/png"
+          - "Content-Type: image/svg+xml"
+          - "Content-Type: image/tiff"
+          - "Content-Type: image/webp"
+          - "Content-Type: video/mp4"
+          - "Content-Type: text/css"
+          - "Content-Type: application/x-javascript"
+          - "Content-Type: text/javascript"
+          - "Content-Type: application/javascript"
+          - "Content-Type: application/pdf"
+          - "Content-Type: application/x-font-woff"
+          - "Content-Type: application/x-font-woff2"
+          - "Content-Type: application/font-woff"
+          - "Content-Type: font/woff"
+          - "Content-Type: font/woff2"
+      t:
+        - /home/deifzar/nuclei-templates
+      turl:
+        - https://cloud.projectdiscovery.io/public/
+      trustedDomains:
+        - 127.0.0.1:8000
+        - cloud.projectdiscovery.io
+        - cptm8.net
+      templateSources:
+        - http://127.0.0.1:8000/
+        - http://127.0.0.1:8000/ 
+    # PostgreSQL connection
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        max_connections:
+        min_connections:
+        pool.max_idle_time:
+        max_lifetime:
+        health_check_period:
+        connection_timeout:
+        retry_attempts: 10
+        retry_delay: 5 # seconds

@@ -1,0 +1,78 @@
+# configmaps/app-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cptm8-config
+  namespace: cptm8-dev
+data:
+  # Environment settings
+  NODE_ENV: "development"
+  ENVIRONMENT: "development"
+  LOG_LEVEL: "debug"
+
+  # AWS ECR
+  AWS_ACCOUNT_ID: "1234567890123"
+  AWS_REGION: "awsregion"
+  
+  # POSTGRESQL
+  POSTGRESQL_NON_ROOT_USERNAME: "cpt_dbuser" # DO NOT change
+  POSTGRESQL_DB: "cptm8" # DO NOT change
+  
+  # MONGODB
+  MONGO_INITDB_ROOT_USERNAME: "admin" # DO NOT change
+  MONGO_NON_ROOT_USERNAME: "cpt_dbuser" # DO NOT change
+  MONGO_INITDB_DATABASE: "cptm8chat" # DO NOT change
+  MONGO_INITDB_COLLECTION: "support" # DO NOT change
+  
+  # RABBITMQ settings
+  RabbitMQ_EXCHANGE: "notification" # DO NOT change - env variable for socketm8 to publish messages
+  
+  # SMTP settings
+  SMTP_SERVER: "smtpserver"
+  SMTP_PORT: "port"
+  SMTP_EMAILSENDER: "test@example.com"
+  
+  # FRONTEND settings
+  DASHBOARDM8_PORT: "port"
+  DASHBOARDM8_URL: "url"
+  SOCKETM8_PORT: "port"
+  USER_EMAIL_DOMAIN: "customer_domain"
+  CLOUD_PROVIDER: "AWS|AZ|GCP"
+
+  # AuthJS/NextAuth URL - CRITICAL for OAuth callbacks
+  # Must match the external URL accessible from browser
+  AUTH_URL: "dashboardurl"
+  NEXTAUTH_URL: "dashboardurl"  # Fallback for NextAuth v4
+
+  NEXT_DASHBOARD_URL: "dashboardurl"
+  CORS: "dashboardurl socketurl" # Split origins with spaces
+  
+  # Report Configuration
+  COMPANY_NAME: "ACME Corp."
+  AWS_BUCKET_REGION: "awsregion"
+  AWS_BUCKET_NAME: "s3bucketname"
+
+  # Service hostnames
+  DASHBOARDM8_HOSTNAME: "dashboardm8-service.cptm8-dev.svc.cluster.local"
+  SOCKETM8_HOSTNAME: "socketm8-service.cptm8-dev.svc.cluster.local"
+  
+  RABBITMQ_HOSTNAME: "rabbitmq-service.cptm8-dev.svc.cluster.local"
+  POSTGRESQL_HOSTNAME: "postgresql-service.cptm8-dev.svc.cluster.local"
+  MONGODB1_HOSTNAME: "mongodb-primary-service.cptm8-dev.svc.cluster.local"
+  OPENSEARCH1_HOSTNAME: "opensearch-service.cptm8-dev.svc.cluster.local"
+  OPENSEARCH2_HOSTNAME: "opensearch-node2-service.cptm8-dev.svc.cluster.local"
+  OPENSEARCH_DASHBOARD_HOSTNAME: "opensearch-dashboard-service.cptm8-dev.svc.cluster.local"
+  VECTOR_HOSTNAME: "vector-service.cptm8-dev.svc.cluster.local"
+  
+  ASMM8_HOSTNAME: "asmm8-service.cptm8-dev.svc.cluster.local"
+  NAABUM8_HOSTNAME: "naabum8-service.cptm8-dev.svc.cluster.local"
+  KATANAM8_HOSTNAME: "katanam8-service.cptm8-dev.svc.cluster.local"
+  NUM8_HOSTNAME: "num8-service.cptm8-dev.svc.cluster.local"
+  REPORTINGM8_HOSTNAME: "reportingm8-service.cptm8-dev.svc.cluster.local"
+
+  # Development API endpoints
+  ASMM8_URL: "http://asmm8-service.cptm8-dev.svc.cluster.local:8000"
+  NAABUM8_URL: "http://naabum8-service.cptm8-dev.svc.cluster.local:8001"
+  KATANAM8_URL: "http://katanam8-service.cptm8-dev.svc.cluster.local:8002"
+  NUM8_URL: "http://num8-service.cptm8-dev.svc.cluster.local:8003"
+  REPORTINGM8_URL: "http://reportingm8-service.cptm8-dev.svc.cluster.local:8004"

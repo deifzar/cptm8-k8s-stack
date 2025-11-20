@@ -1,0 +1,27 @@
+# rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: cptm8-prod
+  name: cptm8-prod-operator
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: security-team-prod
+  namespace: cptm8-prod
+subjects:
+- kind: User
+  name: security-team
+  apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role
+  name: cptm8-prod-operator
+  apiGroup: rbac.authorization.k8s.io

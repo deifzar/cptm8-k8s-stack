@@ -1,0 +1,288 @@
+# Shared Log Volumes for Vector Integration
+# These PersistentVolumes will be shared between applications and Vector for log aggregation
+# Now the correct deployment sequence is:
+
+#   1. Apply storage class first:
+#   kubectl apply -f storage/storageclass-logs-dev.yaml
+#   2. Apply shared log volumes:
+#   kubectl apply -f storage/shared-logs-pv-dev.yaml
+#   3. Deploy/update applications and Vector:
+#   kubectl apply -f deployments/
+
+---
+# ASMM8 Log Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: asmm8-logs-pv
+  namespace: cptm8-dev
+  labels:
+    app: asmm8
+    component: logs
+    environment: development
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cptm8-dev-logs-shared
+  hostPath:
+    path: /var/cptm8-dev-logs/asmm8
+    type: DirectoryOrCreate
+
+---
+# NAABUM8 Log Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: naabum8-logs-pv
+  namespace: cptm8-dev
+  labels:
+    app: naabum8
+    component: logs
+    environment: development
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cptm8-dev-logs-shared
+  hostPath:
+    path: /var/cptm8-dev-logs/naabum8
+    type: DirectoryOrCreate
+
+---
+# KATANAM8 Log Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: katanam8-logs-pv
+  namespace: cptm8-dev
+  labels:
+    app: katanam8
+    component: logs
+    environment: development
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cptm8-dev-logs-shared
+  hostPath:
+    path: /var/cptm8-dev-logs/katanam8
+    type: DirectoryOrCreate
+
+---
+# NUM8 Log Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: num8-logs-pv
+  namespace: cptm8-dev
+  labels:
+    app: num8
+    component: logs
+    environment: development
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cptm8-dev-logs-shared
+  hostPath:
+    path: /var/cptm8-dev-logs/num8
+    type: DirectoryOrCreate
+
+---
+# REPORTINGM8 Log Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: reportingm8-logs-pv
+  namespace: cptm8-dev
+  labels:
+    app: reportingm8
+    component: logs
+    environment: development
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cptm8-dev-logs-shared
+  hostPath:
+    path: /var/cptm8-dev-logs/reportingm8
+    type: DirectoryOrCreate
+
+---
+# ORCHESTRATORM8 Log Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: orchestratorm8-logs-pv
+  namespace: cptm8-dev
+  labels:
+    app: orchestratorm8
+    component: logs
+    environment: development
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: cptm8-dev-logs-shared
+  hostPath:
+    path: /var/cptm8-dev-logs/orchestratorm8
+    type: DirectoryOrCreate
+
+---
+# PersistentVolumeClaims for each service
+
+# ASMM8 Log PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: asmm8-logs-pvc
+  namespace: cptm8-dev
+  labels:
+    app: asmm8
+    component: logs
+    environment: development
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: cptm8-dev-logs-shared
+  selector:
+    matchLabels:
+      app: asmm8
+      component: logs
+      environment: development
+
+---
+# NAABUM8 Log PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: naabum8-logs-pvc
+  namespace: cptm8-dev
+  labels:
+    app: naabum8
+    component: logs
+    environment: development
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: cptm8-dev-logs-shared
+  selector:
+    matchLabels:
+      app: naabum8
+      component: logs
+      environment: development
+
+---
+# KATANAM8 Log PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: katanam8-logs-pvc
+  namespace: cptm8-dev
+  labels:
+    app: katanam8
+    component: logs
+    environment: development
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: cptm8-dev-logs-shared
+  selector:
+    matchLabels:
+      app: katanam8
+      component: logs
+      environment: development
+
+---
+# NUM8 Log PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: num8-logs-pvc
+  namespace: cptm8-dev
+  labels:
+    app: num8
+    component: logs
+    environment: development
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: cptm8-dev-logs-shared
+  selector:
+    matchLabels:
+      app: num8
+      component: logs
+      environment: development
+
+---
+# REPORTINGM8 Log PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reportingm8-logs-pvc
+  namespace: cptm8-dev
+  labels:
+    app: reportingm8
+    component: logs
+    environment: development
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: cptm8-dev-logs-shared
+  selector:
+    matchLabels:
+      app: reportingm8
+      component: logs
+      environment: development
+
+---
+# ORCHESTRATORM8 Log PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: orchestratorm8-logs-pvc
+  namespace: cptm8-dev
+  labels:
+    app: orchestratorm8
+    component: logs
+    environment: development
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: cptm8-dev-logs-shared
+  selector:
+    matchLabels:
+      app: orchestratorm8
+      component: logs
+      environment: development

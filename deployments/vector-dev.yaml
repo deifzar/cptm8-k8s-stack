@@ -1,0 +1,133 @@
+# Vector Log Aggregation Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector
+  namespace: cptm8-dev
+  labels:
+    app: vector
+    environment: development
+    tier: logging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vector
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: vector
+        environment: development
+        tier: logging
+    spec:
+      # Init container to wait for OpenSearch
+      initContainers:
+      - name: wait-for-opensearch
+        image: curlimages/curl:8.4.0
+        env:
+        - name: OPENSEARCH_URL
+          value: "http://opensearch-service.cptm8-dev.svc.cluster.local:9200"
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for OpenSearch cluster to be ready..."
+          until curl "$OPENSEARCH_URL/_cluster/health?wait_for_status=yellow&timeout=50s" \
+            -o /dev/null -s -w "%{http_code}\n" | grep -q "200"; do
+            echo "OpenSearch not ready, waiting..."
+            sleep 5
+          done
+          echo "OpenSearch cluster is ready!"
+          
+      containers:
+      - name: vector
+        image: timberio/vector:0.34.1-alpine
+        env:
+        - name: VECTOR_CONFIG_PATH
+          value: "/etc/vector/vector.yaml"
+        ports:
+        - containerPort: 8686
+          name: api
+        volumeMounts:
+        - name: vector-config
+          mountPath: /etc/vector
+          readOnly: true
+        - name: vector-data
+          mountPath: /tmp/vector
+        # Log volume mounts for all services
+        - name: orchestratorm8-logs
+          mountPath: /var/log/orchestratorm8
+          readOnly: true
+        - name: asmm8-logs
+          mountPath: /var/log/asmm8
+          readOnly: true
+        - name: naabum8-logs
+          mountPath: /var/log/naabum8
+          readOnly: true
+        - name: katanam8-logs
+          mountPath: /var/log/katanam8
+          readOnly: true
+        - name: num8-logs
+          mountPath: /var/log/num8
+          readOnly: true
+        - name: reportingm8-logs
+          mountPath: /var/log/reportingm8
+          readOnly: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8686
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8686
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: vector-config
+        configMap:
+          name: vector-config
+          defaultMode: 0644
+      - name: vector-data
+        emptyDir: {}
+      # Shared volumes for application logs
+      - name: orchestratorm8-logs
+        persistentVolumeClaim:
+          claimName: orchestratorm8-logs-pvc
+      - name: asmm8-logs
+        persistentVolumeClaim:
+          claimName: asmm8-logs-pvc
+      - name: naabum8-logs
+        persistentVolumeClaim:
+          claimName: naabum8-logs-pvc
+      - name: katanam8-logs
+        persistentVolumeClaim:
+          claimName: katanam8-logs-pvc
+      - name: num8-logs
+        persistentVolumeClaim:
+          claimName: num8-logs-pvc
+      - name: reportingm8-logs
+        persistentVolumeClaim:
+          claimName: reportingm8-logs-pvc
+      securityContext:
+        fsGroup: 10001
+      serviceAccountName: vector-sa

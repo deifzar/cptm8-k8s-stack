@@ -1,0 +1,115 @@
+# deployments/postgresql.yaml
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgresqlm8
+  namespace: cptm8-dev
+  labels:
+    app: postgresqlm8
+    environment: development
+    tier: data
+spec:
+  serviceName: postgresql-headless
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresqlm8 # has to match .spec.template.metadata.labels
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: postgresqlm8
+        environment: development
+        tier: data
+    spec:
+      containers:
+      - name: postgresqlm8
+        image: postgres:15-alpine
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_DB
+        - name: POSTGRESQL_NON_ROOT_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_NON_ROOT_USERNAME
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secrets
+              key: postgresql-root-password
+        - name: POSTGRES_NON_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secrets
+              key: postgresql-user-password
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        ports:
+        - containerPort: 5432
+        volumeMounts:
+        - name: postgresql-vct
+          mountPath: /var/lib/postgresql/data
+        - name: initdb-scripts
+          mountPath: /docker-entrypoint-initdb.d
+          readOnly: true
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - $(POSTGRES_DB)
+          initialDelaySeconds: 30    # Wait before first check
+          periodSeconds: 10          # Check every 10 seconds
+          timeoutSeconds: 5          # 5 second timeout
+          successThreshold: 1        # 1 success to mark healthy
+          failureThreshold: 3        # 3 failures before restart
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - postgres
+            - -d
+            - $(POSTGRES_DB)
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1        # 1 success to mark ready
+          failureThreshold: 3        # 3 failures to mark not ready
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: initdb-scripts
+        configMap:
+          name: postgresql-init-scripts
+          defaultMode: 0755
+      securityContext:
+        fsGroup: 10001
+  volumeClaimTemplates:
+  - metadata:
+      name: postgresql-vct
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: cptm8-dev-ssd-retain
+      resources:
+        requests:
+          storage: 30Gi

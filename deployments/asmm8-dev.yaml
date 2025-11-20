@@ -1,0 +1,209 @@
+# deployments/asmm8.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asmm8
+  namespace: cptm8-dev
+  labels:
+    app: asmm8
+    environment: development
+    tier: application
+    component: scanner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: asmm8
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: asmm8
+        environment: development
+        tier: application
+        component: scanner
+    spec:
+      # ECR authentication for private images
+      imagePullSecrets:
+      - name: ecr-registry-secret
+      # Init container to prepare writable directories and files
+      initContainers:
+      - name: fix-app-ownership
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "🔧 Preparing writable directories and files..."
+          # Copy ConfigMap templates to writable emptyDir (use -L to dereference symlinks)
+          cp -rL /config-templates/* /app/configs/
+          # Create empty configuration.yaml (will be populated by entrypoint)
+          touch /app/configs/configuration.yaml
+          # Set ownership for writable directories
+          echo "👤 Setting ownership..."
+          chown -R 10001:10001 /app/configs /app/log /app/tmp /app/.config
+          chmod 750 /app/configs /app/log /app/tmp /app/.config
+          # Set secure permissions on any existing log and config files
+          find /app/log -type f -name "*.log" -exec chmod 640 {} \; 2>/dev/null || true
+          find /app/configs -type f -exec chmod 640 "{}" \; 2>/dev/null || true
+          echo "✅ Directories and files ready"
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+        - name: tmp-volume
+          mountPath: /app/tmp
+        - name: config-writable
+          mountPath: /app/configs
+        - name: config-dir-volume
+          mountPath: /app/.config
+        - name: config-volume
+          mountPath: /config-templates
+        securityContext:
+          runAsUser: 0
+      containers:
+      - name: asmm8
+        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-backend/asmm8-dev
+        env:
+        - name: SERVICEM8_NAME
+          value: "asmm8"
+        # Set HOME to writable directory for tool configs
+        - name: HOME
+          value: "/app"
+        - name: RABBITMQ_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: RABBITMQ_HOSTNAME  
+        - name: POSTGRESQL_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_HOSTNAME
+        - name: POSTGRESQL_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_NON_ROOT_USERNAME
+        - name: POSTGRESQL_DB
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_DB
+        - name: ASMM8_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: ASMM8_HOSTNAME
+        - name: ASMM8_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: ASMM8_URL
+        - name: NAABUM8_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: NAABUM8_HOSTNAME
+        - name: NAABUM8_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: NAABUM8_URL
+        # Secret references
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secrets
+              key: postgresql-user-password
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secrets
+              key: rabbitmq-username
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secrets
+              key: rabbitmq-password
+        ports:
+        - containerPort: 8000
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        # Health checks - assuming your Go service supports these endpoints
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30    # Wait before first check
+          periodSeconds: 10          # Check every 10 seconds
+          timeoutSeconds: 5          # 5 second timeout
+          successThreshold: 1        # 1 success to mark healthy
+          failureThreshold: 3        # 3 failures before restart
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8000
+          initialDelaySeconds: 10    # Reduced - Go apps start fast
+          periodSeconds: 5           # Check every 5 seconds
+          timeoutSeconds: 3          # 3 second timeout
+          successThreshold: 1        # 1 success to mark ready
+          failureThreshold: 3        # 3 failures to mark not ready
+        # Security context for Go services
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false  # Keep filesystem read-only for security
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - NET_RAW  # Required for network scanning
+        # Volume mounts for logs and entrypoint override
+        volumeMounts:
+        # Mount entire writable config directory (populated by init container)
+        - name: config-writable
+          mountPath: /app/configs
+        # Mount persistent log volume
+        - name: log-volume
+          mountPath: /app/log
+        # Temporary directory (ephemeral)
+        - name: tmp-volume
+          mountPath: /app/tmp
+        # Config directory for other tools (ephemeral)
+        - name: config-dir-volume
+          mountPath: /app/.config
+          readOnly: false
+        # Override docker-entrypoint.sh with Kubernetes-compatible version
+        - name: entrypoint-override
+          mountPath: /usr/local/bin/docker-entrypoint.sh
+          subPath: docker-entrypoint.sh
+          readOnly: true
+      volumes:
+      # Writable emptyDir for configuration.yaml (created by entrypoint)
+      - name: config-writable
+        emptyDir: {}
+      - name: config-volume
+        configMap:
+          name: configuration-template-asmm8
+          defaultMode: 0644 # Read-only config file
+      - name: log-volume
+        persistentVolumeClaim:
+          claimName: asmm8-logs-pvc
+      - name: tmp-volume
+        emptyDir: {}
+      - name: config-dir-volume
+        emptyDir: {}
+      # ConfigMap with Kubernetes-compatible docker-entrypoint.sh
+      - name: entrypoint-override
+        configMap:
+          name: docker-entrypoint-backend
+          defaultMode: 0755  # Make script executable
+      # Pod security context
+      securityContext:
+        fsGroup: 10001
