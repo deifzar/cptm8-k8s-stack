@@ -28,4 +28,6 @@ CLAUDE.md
 # docs
 /docs/*
 !/docs/ARCHITECTURE.md
+!/docs/DEVELOPMENT.md
+!/docs/FRONTEND-EXPOSURE-GUIDE.md
 !/docs/deployment/
