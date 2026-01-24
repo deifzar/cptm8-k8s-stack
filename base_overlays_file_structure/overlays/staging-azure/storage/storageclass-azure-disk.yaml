@@ -1,0 +1,67 @@
+# Azure Managed Disk Premium StorageClass for staging
+# Uses Azure Premium SSD v2 for high-performance workloads
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cptm8-staging-azure-premium
+  labels:
+    tier: data
+    environment: staging
+    cloud-provider: azure
+allowVolumeExpansion: true
+provisioner: disk.csi.azure.com
+parameters:
+  # Premium SSD for production-grade performance
+  skuName: Premium_LRS
+  # Enable encryption at rest (uses platform-managed keys by default)
+  # For customer-managed keys, specify diskEncryptionSetID
+  # diskEncryptionSetID: /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.Compute/diskEncryptionSets/{des-name}
+  # Network access: Allow from AKS nodes only
+  networkAccessPolicy: AllowPrivate
+  # Enable bursting for Premium SSD (P30 and above)
+  enableBursting: "true"
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+# Azure Standard SSD StorageClass for non-critical workloads (cost optimization)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cptm8-staging-azure-standard
+  labels:
+    tier: data
+    environment: staging
+    cloud-provider: azure
+allowVolumeExpansion: true
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: StandardSSD_LRS
+  networkAccessPolicy: AllowPrivate
+reclaimPolicy: Retain
+volumeBindingMode: WaitForFirstConsumer
+---
+# Azure Files StorageClass for ReadWriteMany scenarios (shared logs, etc.)
+# Safely to remove since Vector and Opensearch deals with the logging design.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: cptm8-staging-azure-files
+  labels:
+    tier: shared
+    environment: staging
+    cloud-provider: azure
+allowVolumeExpansion: true
+provisioner: file.csi.azure.com
+parameters:
+  skuName: Premium_LRS
+  # Enable large file shares for better performance
+  enableLargeFileShares: "true"
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+mountOptions:
+  - dir_mode=0755
+  - file_mode=0644
+  - uid=10001
+  - gid=10001
+  - mfsymlinks
+  - cache=strict

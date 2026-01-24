@@ -1,0 +1,137 @@
+# overlays/staging/security/network-policies.yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-backend-policy
+spec:
+  podSelector:
+    matchLabels:
+      component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          component: frontend
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    - podSelector:
+        matchLabels:
+          tier: messaging
+    ports:
+    - port: 5432
+      protocol: TCP
+    - port: 27017
+      protocol: TCP
+    - port: 5672
+      protocol: TCP
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: logging
+    ports:
+    - port: 9200
+      protocol: TCP
+  - to:  # Allow external HTTPS for APIs
+    - namespaceSelector: {}
+    ports:
+    - port: 80
+      protocol: TCP
+    - port: 443
+      protocol: TCP
+  - to:  # Allow DNS
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - port: 53
+      protocol: UDP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: database-policy
+spec:
+  podSelector:
+    matchLabels:
+      tier: data
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: application
+  egress:
+  # Allow egress for scanning and logging services (they need to scan external targets)
+  - to: 
+    - podSelector:
+        matchLabels:
+          tier: application
+          component: scanner
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: logging-policy
+spec:
+  podSelector:
+    matchLabels:
+      tier: logging
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: logging
+    - podSelector:
+        matchLabels:
+          app: opensearch-dashboard
+          component: frontend
+  egress:
+  # Allow egress for scanning and logging services (they need to scan external targets)
+  - to: 
+    - podSelector:
+        matchLabels:
+          tier: logging
+    - podSelector:
+        matchLabels:
+          tier: application
+          component: scanner
+---
+# Special network policy for scanning services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scanner-services-policy
+spec:
+  podSelector:
+    matchLabels:
+      component: scanner
+  policyTypes:
+  - Egress
+  - Ingress
+  egress:
+  # Allow all egress (they need to scan external targets)
+  - to: []
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: vector
+          tier: logging
+    - podSelector:
+        matchLabels:
+          app: rabbitmq
+          tier: messaging

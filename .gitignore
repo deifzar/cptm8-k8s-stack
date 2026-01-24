@@ -1,12 +1,19 @@
 # examples
-/examples/*
+/examples
 
 # secrets
+/flat_file_structure/secrets/*
+!/flat_file_structure/secrets/secrets-dev.example.yaml
+/base_overlays_file_structure/overlays/*/secrets/*
+!/base_overlays_file_structure/overlays/*/secrets/secrets.example.yaml
 /secrets/*
 !/secrets/secrets-dev.example.yaml
 !/secrets/.gitkeep
 
+#keys
 key.txt
+staging-sshkey
+staging-sshkey.pub
 
 # configmaps
 configmaps/config-dev.yaml
@@ -16,6 +23,7 @@ configmaps/opensearch-config-dev.yaml
 validate-deployment.sh
 environment_vars_setup.sh
 cleanup-volumes.sh
+
 
 # AI
 .claude/*
