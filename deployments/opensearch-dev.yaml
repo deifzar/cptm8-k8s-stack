@@ -1,0 +1,298 @@
+# OpenSearch Node 1 Deployment
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch-node1
+  namespace: cptm8-dev
+  labels:
+    app: opensearch-node1
+    environment: development
+    tier: logging
+spec:
+  serviceName: opensearch-cluster
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch-node1
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: opensearch-node1
+        environment: development
+        tier: logging
+        opensearch-role: master
+    spec:
+      containers:
+      - name: opensearch-node1
+        image: opensearchproject/opensearch:2.11.1
+        env:
+        - name: cluster.name
+          value: "opensearch-cluster"
+        - name: node.name
+          value: "opensearch-node1"
+        - name: discovery.seed_hosts
+          value: "opensearch-node1-0.opensearch-cluster.cptm8-dev.svc.cluster.local,opensearch-node2-0.opensearch-cluster.cptm8-dev.svc.cluster.local"
+        - name: cluster.initial_cluster_manager_nodes
+          value: "opensearch-node1,opensearch-node2"
+        - name: bootstrap.memory_lock
+          value: "false"
+        - name: OPENSEARCH_JAVA_OPTS
+          value: "-Xms512m -Xmx512m"
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: "true"
+        - name: DISABLE_SECURITY_PLUGIN
+          value: "true"
+        - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: opensearch-secrets
+              key: opensearch-admin-password
+        ports:
+        - containerPort: 9200
+          name: http
+        - containerPort: 9600
+          name: perf
+        - containerPort: 9300
+          name: transport
+        volumeMounts:
+        - name: opensearch-data1
+          mountPath: /usr/share/opensearch/data
+        - name: opensearch-config
+          mountPath: /usr/share/opensearch/config/opensearch-security/internal_users.yml
+          subPath: internal_users.yml
+          readOnly: true
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: 9200
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: 9200
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: opensearch-config
+        configMap:
+          name: opensearch-config
+          defaultMode: 0644
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+      - name: configure-sysctl
+        image: busybox:1.35
+        command: ['sh', '-c', 'echo "vm.max_map_count=262144" > /tmp/sysctl.conf && sysctl -p /tmp/sysctl.conf']
+        securityContext:
+          privileged: true
+  volumeClaimTemplates:
+  - metadata:
+      name: opensearch-data1
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: cptm8-dev-ssd-retain
+      resources:
+        requests:
+          storage: 10Gi
+---
+# OpenSearch Node 2 Deployment
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch-node2
+  namespace: cptm8-dev
+  labels:
+    app: opensearch-node2
+    environment: development
+    tier: data
+spec:
+  serviceName: opensearch-cluster
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch-node2
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: opensearch-node2
+        environment: development
+        tier: data
+        opensearch-role: master
+    spec:
+      containers:
+      - name: opensearch-node2
+        image: opensearchproject/opensearch:2.11.1
+        env:
+        - name: cluster.name
+          value: "opensearch-cluster"
+        - name: node.name
+          value: "opensearch-node2"
+        - name: discovery.seed_hosts
+          value: "opensearch-node1-0.opensearch-cluster.cptm8-dev.svc.cluster.local,opensearch-node2-0.opensearch-cluster.cptm8-dev.svc.cluster.local"
+        - name: cluster.initial_cluster_manager_nodes
+          value: "opensearch-node1,opensearch-node2"
+        - name: bootstrap.memory_lock
+          value: "false"
+        - name: OPENSEARCH_JAVA_OPTS
+          value: "-Xms2g -Xmx2g"
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: "true"
+        - name: DISABLE_SECURITY_PLUGIN
+          value: "true"
+        - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: opensearch-secrets
+              key: opensearch-admin-password
+        ports:
+        - containerPort: 9200
+          name: http
+        - containerPort: 9600
+          name: perf
+        - containerPort: 9300
+          name: transport
+        volumeMounts:
+        - name: opensearch-data2
+          mountPath: /usr/share/opensearch/data
+        - name: opensearch-config
+          mountPath: /usr/share/opensearch/config/opensearch-security/internal_users.yml
+          subPath: internal_users.yml
+          readOnly: true
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: 9200
+            scheme: HTTP
+          initialDelaySeconds: 90
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: 9200
+            scheme: HTTP
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: opensearch-config
+        configMap:
+          name: opensearch-config
+          defaultMode: 0644
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+      - name: configure-sysctl
+        image: busybox:1.35
+        command: ['sh', '-c', 'echo "vm.max_map_count=262144" > /tmp/sysctl.conf && sysctl -p /tmp/sysctl.conf']
+        securityContext:
+          privileged: true
+  volumeClaimTemplates:
+  - metadata:
+      name: opensearch-data2
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: cptm8-dev-ssd-retain
+      resources:
+        requests:
+          storage: 10Gi
+---
+# OpenSearch Dashboard Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch-dashboard
+  namespace: cptm8-dev
+  labels:
+    app: opensearch-dashboard
+    environment: development
+    tier: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch-dashboard
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: opensearch-dashboard
+        environment: development
+        tier: frontend
+    spec:
+      containers:
+      - name: opensearch-dashboard
+        image: opensearchproject/opensearch-dashboards:2.11.1
+        env:
+        - name: OPENSEARCH_HOSTS
+          value: '["http://opensearch-service.cptm8-dev.svc.cluster.local:9200","http://opensearch-node2-service.cptm8-dev.svc.cluster.local:9200"]'
+        - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
+          value: "true"
+        ports:
+        - containerPort: 5601
+          name: http
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: 5601
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+      securityContext:
+        fsGroup: 1000

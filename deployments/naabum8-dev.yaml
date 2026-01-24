@@ -1,0 +1,209 @@
+# deployments/naabum8.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: naabum8
+  namespace: cptm8-dev
+  labels:
+    app: naabum8
+    environment: development
+    tier: application
+    component: scanner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: naabum8
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: naabum8
+        environment: development
+        tier: application
+        component: scanner
+    spec:
+      # ECR authentication for private images
+      imagePullSecrets:
+      - name: ecr-registry-secret
+      # Init container to set log directory permissions for vector access
+      initContainers:
+      - name: fix-app-ownership
+        image: busybox:1.35
+        command:
+        - sh
+        - -c
+        - |
+          echo "🔧 Preparing writable directories and files..."
+          # Copy ConfigMap templates to writable emptyDir (use -L to dereference symlinks)
+          cp -rL /config-templates/* /app/configs/
+          # Create empty configuration.yaml (will be populated by entrypoint)
+          touch /app/configs/configuration.yaml
+          # Set ownership for writable directories
+          echo "👤 Setting ownership..."
+          chown -R 0:10001 /app/configs /app/log /app/tmp /app/.config
+          chmod 750 /app/configs /app/log /app/tmp /app/.config
+          # Set secure permissions on any existing log and config files
+          find /app/log -type f -name "*.log" -exec chmod 640 {} \; 2>/dev/null || true
+          find /app/configs -type f -exec chmod 640 "{}" \; 2>/dev/null || true
+          echo "✅ Directories and files ready"
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+        - name: tmp-volume
+          mountPath: /app/tmp
+        - name: config-writable
+          mountPath: /app/configs
+        - name: config-dir-volume
+          mountPath: /app/.config
+        - name: config-volume
+          mountPath: /config-templates
+        securityContext:
+          runAsUser: 0
+      containers:
+      - name: naabum8
+        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-backend/naabum8-dev
+        env:
+        - name: SERVICEM8_NAME
+          value: "naabum8"
+        - name: HOME
+          value: "/app"
+        - name: RABBITMQ_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: RABBITMQ_HOSTNAME  
+        - name: POSTGRESQL_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_HOSTNAME
+        - name: POSTGRESQL_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_NON_ROOT_USERNAME
+        - name: POSTGRESQL_DB
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: POSTGRESQL_DB
+        - name: NAABUM8_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: NAABUM8_HOSTNAME
+        - name: NAABUM8_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: NAABUM8_URL
+        - name: KATANAM8_HOSTNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: KATANAM8_HOSTNAME
+        - name: KATANAM8_URL
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: KATANAM8_URL
+        # Secret references
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgresql-secrets
+              key: postgresql-user-password
+        - name: RABBITMQ_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secrets
+              key: rabbitmq-username
+        - name: RABBITMQ_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: rabbitmq-secrets
+              key: rabbitmq-password
+        ports:
+        - containerPort: 8001
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "200m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        # Health checks - assuming your Go service supports these endpoints
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8001
+          initialDelaySeconds: 30    # Wait before first check
+          periodSeconds: 10          # Check every 10 seconds
+          timeoutSeconds: 5          # 5 second timeout
+          successThreshold: 1        # 1 success to mark healthy
+          failureThreshold: 3        # 3 failures before restart
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8001
+          initialDelaySeconds: 10    # Reduced - Go apps start fast
+          periodSeconds: 5           # Check every 5 seconds
+          timeoutSeconds: 3          # 3 second timeout
+          successThreshold: 1        # 1 success to mark ready
+          failureThreshold: 3        # 3 failures to mark not ready
+        # Security context for network scanner - requires privileged capabilities
+        # Note: Binary has file capabilities set via setcap in Dockerfile
+        securityContext:
+          runAsNonRoot: false  # Port scanning requires root or privileged capabilities
+          runAsUser: 0  # Run as root for network operations
+          allowPrivilegeEscalation: true  # Required for file capabilities to work
+          readOnlyRootFilesystem: false
+          # Don't drop ALL capabilities - file capabilities need to be preserved
+          capabilities:
+            add:
+            - NET_RAW  # Required for raw socket operations (port scanning)
+            - NET_ADMIN  # Required for advanced network configuration
+            - NET_BIND_SERVICE  # Required for binding to privileged ports
+        # Volume mounts for logs
+        volumeMounts:
+        # Mount entire writable config directory (populated by init container)
+        - name: config-writable
+          mountPath: /app/configs
+        # Log directory (persistent)
+        - name: log-volume
+          mountPath: /app/log
+        # Temporary directory (ephemeral)
+        - name: tmp-volume
+          mountPath: /app/tmp
+        # Config directory for other tools (ephemeral)
+        - name: config-dir-volume
+          mountPath: /app/.config
+        # Override docker-entrypoint.sh with Kubernetes-compatible version
+        - name: entrypoint-override
+          mountPath: /usr/local/bin/docker-entrypoint.sh
+          subPath: docker-entrypoint.sh
+          readOnly: true
+      volumes:
+      # Writable /app directory
+      - name: config-writable
+        emptyDir: {}
+      - name: config-volume
+        configMap:
+          name: configuration-template-naabum8
+          defaultMode: 0644 # Read-only config file
+      - name: log-volume
+        persistentVolumeClaim:
+          claimName: naabum8-logs-pvc
+      - name: tmp-volume
+        emptyDir: {}
+      - name: config-dir-volume
+        emptyDir: {}
+      # ConfigMap with Kubernetes-compatible docker-entrypoint.sh
+      - name: entrypoint-override
+        configMap:
+          name: docker-entrypoint-backend
+          defaultMode: 0755  # Make script executable
+      # Pod security context - allow root for network scanning
+      securityContext:
+        fsGroup: 10001  # Shared group with vector for log file access

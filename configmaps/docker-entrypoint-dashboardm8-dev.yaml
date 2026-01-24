@@ -1,0 +1,100 @@
+# ConfigMap to override docker-entrypoint.sh for Kubernetes deployments
+# This script does nothing since Kubernetes injects secrets as environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docker-entrypoint-dashboardm8-frontend
+  namespace: cptm8-dev
+data:
+  docker-entrypoint.sh: |
+    #!/bin/sh
+    set -e
+    
+    echo "🔧 Starting '${DASHBOARDM8_HOSTNAME}' service on Kubernetes..."
+    echo "✅ Kubernetes manages secrets via environment variables"
+    
+    # In Kubernetes, secrets are already injected as environment variables
+    # No need to read from /run/secrets/* files. 
+    # Files that are only needed when working on Docker compose.
+    
+    # As information only during container deployment,
+    # verify required environment variables are present.
+    echo "🔍 Verifying environment variables..."
+    
+    # Remove any existing .env file and create a new one with proper permissions                                     │ │
+    if [ -f "/app/.env" ]; then
+        rm -f /app/.env || echo "Warning: Could not remove existing .env file"
+    fi
+
+    # Check PostgreSQL credentials
+    if [ -z "$PPG_DATABASE_URL" ]; then
+        echo "⚠️  WARNING: PPG_DATABASE_URL environment variable not set"
+    else
+        echo "✅ PPG_DATABASE_URL credentials available"
+    fi
+    
+    # Check MongoDB credentials
+    if [ -z "$PMG_DATABASE_URL" ]; then
+        echo "⚠️  WARNING: PMG_DATABASE_URL environment variable not set"
+    else
+        echo "✅ PMG_DATABASE_URL credentials available"
+    fi
+    
+    # Check OAuth Google secrets
+    if [ -z "$GOOGLE_CLIENT_ID" ]; then
+        echo "⚠️  WARNING: GOOGLE_CLIENT_ID environment variable not set"
+    else
+        echo "✅ GOOGLE_CLIENT_ID username available"
+    fi
+    if [ -z "$GOOGLE_CLIENT_SECRET" ]; then
+        echo "⚠️  WARNING: GOOGLE_CLIENT_SECRET environment variable not set"
+    else
+        echo "✅ GOOGLE_CLIENT_SECRET username available"
+    fi
+    
+    # Check SMTP secrets
+    if [ -z "$SMTP_USERNAME" ]; then
+        echo "⚠️  WARNING: SMTP_USERNAME environment variable not set"
+    else
+        echo "✅ SMTP username available"
+    fi
+    if [ -z "$SMTP_PASSWORD" ]; then
+        echo "⚠️  WARNING: SMTP_PASSWORD environment variable not set"
+    else
+        echo "✅ SMTP password available"
+    fi
+    
+    # Check AWS credentials
+    if [ -z "$AWS_KEY" ]; then
+        echo "⚠️  WARNING: AWS_KEY environment variable not set"
+    else
+        echo "✅ AWS key available"
+    fi
+    if [ -z "$AWS_SECRET" ]; then
+        echo "⚠️  WARNING: AWS_SECRET environment variable not set"
+    else
+        echo "✅ AWS secret available"
+    fi
+    
+    # Generate Prisma clients at runtime (using real database URLs)
+    echo "🔧 Generating Prisma clients..."
+    echo "📍 PostgreSQL URL: ${PPG_DATABASE_URL%%:*}://****@${PPG_DATABASE_URL##*@}"
+
+    npx prisma generate --schema ./prisma/prisma-postgresql/schema.prisma 2>&1 || { echo "⚠️  PostgreSQL client generation failed"; exit 1; }
+
+    echo "🔧 Generating SQL client (TypedSQL) - requires database connection..."
+    echo "🔌 Testing database connectivity first..." 
+    timeout 10 sh -c 'until nc -z $POSTGRESQL_HOSTNAME 5432; do echo "Waiting for PostgreSQL..."; sleep 2; done' || { echo "⚠️  PostgreSQL not reachable"; exit 1; }
+    echo "✅ PostgreSQL is reachable"
+
+    timeout 60 npx prisma generate --sql --schema ./prisma/prisma-postgresql/schema.prisma 2>&1 || { echo "⚠️  SQL client generation failed or timed out (exit code $?)"; exit 1; }
+
+    echo "🔧 Generating MongoDB client..."
+    npx prisma generate --schema ./prisma/prisma-mongodb/schema.prisma 2>&1 || { echo "⚠️  MongoDB client generation failed"; exit 1; }
+
+    echo "✅ Prisma clients generated successfully!"
+    
+    echo "✅ Kubernetes entrypoint preparation complete"
+
+    # Execute the main command passed as arguments
+    exec "$@"

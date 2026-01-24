@@ -1,0 +1,95 @@
+# ConfigMap to override docker-entrypoint.sh for Kubernetes deployments
+# This script does nothing since Kubernetes injects secrets as environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: docker-entrypoint-backend
+  namespace: cptm8-dev
+data:
+  docker-entrypoint.sh: |
+    #!/bin/sh
+    set -e
+
+    # Set umask to create files with secure permissions
+    # umask 0027 results in:
+    # - New files: 640 (rw-r-----) - owner read/write, group read
+    # - New directories: 750 (rwxr-x---) - owner rwx, group r-x
+    umask 0027
+
+    echo "🔧 Starting '${SERVICEM8_NAME}' service on Kubernetes..."
+    echo "✅ Kubernetes manages secrets via environment variables"
+    
+    # In Kubernetes, secrets are already injected as environment variables
+    # No need to read from /run/secrets/* files. 
+    # Files that are only needed when working on Docker compose.
+    
+    # As information only during container deployment,
+    # verify required environment variables are present.
+    echo "🔍 Verifying environment variables..."
+    
+    # Ensure log directory is writable
+    if [ -d "/app/log" ]; then
+        echo "🔧 Ensuring log directory permissions..."
+        touch /app/log/test_write.tmp 2>/dev/null && rm -f /app/log/test_write.tmp && echo "✅ Log directory is writable" || echo "⚠️  WARNING: Log directory is not writable"
+    fi
+    
+    # Check RabbitMQ credentials
+    if [ -z "$RABBITMQ_USERNAME" ]; then
+        echo "⚠️  WARNING: RABBITMQ_USERNAME environment variable not set"
+        exit 1
+    else
+        echo "✅ RabbitMQ username available"
+    fi
+    
+    if [ -z "$RABBITMQ_PASSWORD" ]; then
+        echo "⚠️  WARNING: RABBITMQ_PASSWORD environment variable not set"
+    else
+        echo "✅ RabbitMQ password available"
+    fi
+    
+    # Check PostgreSQL credentials
+    if [ -z "$POSTGRESQL_PASSWORD" ]; then
+        echo "⚠️  WARNING: POSTGRESQL_PASSWORD environment variable not set"
+    else
+        echo "✅ PostgreSQL password available"
+    fi
+    
+    # Check optional SMTP credentials (warnings only)
+    if [ -z "$SMTP_USERNAME" ]; then
+        echo "⚠️  WARNING: SMTP_USERNAME environment variable not set"
+    else
+        echo "✅ SMTP username available"
+    fi
+    
+    if [ -z "$SMTP_PASSWORD" ]; then
+        echo "⚠️  WARNING: SMTP_PASSWORD environment variable not set"
+    else
+        echo "✅ SMTP password available"
+    fi
+    
+    # Check optional AWS credentials (warnings only)
+    if [ -z "$AWS_KEY" ]; then
+        echo "⚠️  WARNING: AWS_KEY environment variable not set"
+    else
+        echo "✅ AWS key available"
+    fi
+    
+    if [ -z "$AWS_SECRET" ]; then
+        echo "⚠️  WARNING: AWS_SECRET environment variable not set"
+    else
+        echo "✅ AWS secret available"
+    fi
+    
+    # Process configuration.yaml if template exists
+    if [ -f "/app/configs/configuration_template.yaml" ]; then
+        echo "🔧 Processing configuration.yaml with environment variables..."
+        envsubst < /app/configs/configuration_template.yaml > /app/configs/configuration.yaml
+        echo "✅ Configuration processed with environment variables"
+    else
+        echo "ℹ️  No configuration template found, skipping envsubst processing"
+    fi
+    
+    echo "✅ Kubernetes entrypoint preparation complete"
+
+    # Execute the main command passed as arguments
+    exec "$@"

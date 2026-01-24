@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-reportingm8
+  namespace: cptm8-dev
+data:
+  configuration_template.yaml: |
+    APP_ENV: DEV # DEV,TEST,PROD (DEV and TEST print logs in CMD screen)
+    LOG_LEVEL: "0"
+    ORCHESTRATORM8:
+      Services:
+          reportingm8: "${REPORTINGM8_URL}"
+      Exchanges:
+        scheduler: "topic" # exchange_name:exchange_type
+      reportingm8: # service name
+        Queue:
+          - scheduler # exchange name
+          - qreportingm8 # queue name
+          - 1
+        Routing-keys:
+          - scheduler.qreportingm8.# # binding key
+        Queue-arguments:
+        Consumer:
+          - "qreportingm8" # queue name
+          - "creportingm8" # consumer name
+          - "false" # autoack
+    REPORTINGM8:
+      Template: 
+        emailsummary: "assets/tesserent/emailsummarytemplate/emailsummarytemplate.html"
+        emailnotificationreport: "assets/tesserent/emailnotificationreporttemplate/emailnotificationreporttemplate.html"
+        report: "assets/tesserent/reporttemplate/001_reporttemplate.html"
+        clientorganisation: "${COMPANY_NAME}" # Client organisation
+        dashboard: "${DASHBOARDM8_URL}" # Link to dashboard
+      SMTP:
+        server: "${SMTP_SERVER}"
+        port: "${SMTP_PORT}"
+        username: "${SMTP_USERNAME}"
+        password: "${SMTP_PASSWORD}"
+        emailsender: "${SMTP_EMAILSENDER}"
+      Schedule:
+        report: monthly # monthly or quaterly
+        email: weekly # monthly or weekly
+      Timezone: "Australia/Sydney" # Reports and emails get delivered at 10 a.m. in the selected time zone.
+    Cloud:
+      provider: "" # Indicate the cloud provider: AWS, Azure, GCP
+      AWS:
+        region: "${AWS_BUCKET_REGION}"
+        key: "${AWS_KEY}"
+        secret: "${AWS_SECRET}"
+        bucket: "${AWS_BUCKET_NAME}"
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        max_connections:
+        min_connections:
+        pool.max_idle_time:
+        max_lifetime:
+        health_check_period:
+        connection_timeout:
+        retry_attempts: 10
+        retry_delay: 5 # seconds

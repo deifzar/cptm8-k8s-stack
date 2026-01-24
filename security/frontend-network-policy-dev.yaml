@@ -1,0 +1,48 @@
+# Frontend Network Security Policy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-network-policy
+  namespace: cptm8-dev
+spec:
+  podSelector:
+    matchLabels:
+      component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow traffic from ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  # Allow internal cluster communication
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: cptm8-dev
+  egress:
+  # Allow communication with backend services
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    - podSelector:
+        matchLabels:
+          tier: messaging
+    - podSelector:
+        matchLabels:
+          tier: application
+  # Allow external HTTPS (for API calls)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53

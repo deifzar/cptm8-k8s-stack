@@ -1,0 +1,80 @@
+# namespaces.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cptm8-prod
+  labels:
+    app.kubernetes.io/name: cptm8
+    environment: production
+    security-level: high
+    data-classification: sensitive
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cptm8-staging
+  labels:
+    app.kubernetes.io/name: cptm8
+    environment: staging
+    security-level: medium
+    data-classification: test
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cptm8-dev
+  labels:
+    app.kubernetes.io/name: cptm8
+    environment: development
+    security-level: development
+    data-classification: synthetic
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cptm8-monitoring
+  labels:
+    app.kubernetes.io/name: cptm8
+    component: observability
+    security-level: medium
+    access-pattern: cross-environment
+---
+# Resource quotas per environment
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: cptm8-prod
+spec:
+  hard:
+    requests.cpu: "8"
+    requests.memory: 32Gi
+    limits.cpu: "16"
+    limits.memory: 64Gi
+    persistentvolumeclaims: "20"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: cptm8-staging
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 16Gi
+    limits.cpu: "8"
+    limits.memory: 32Gi
+    persistentvolumeclaims: "15"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: cptm8-dev
+spec:
+  hard:
+    requests.cpu: "2"
+    requests.memory: 8Gi
+    limits.cpu: "4"
+    limits.memory: 16Gi
+    persistentvolumeclaims: "10"

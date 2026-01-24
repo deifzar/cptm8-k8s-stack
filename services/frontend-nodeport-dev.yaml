@@ -1,0 +1,77 @@
+# NodePort services for Kind local development
+# These map to Kind's extraPortMappings configured in cluster creation:
+# - containerPort: 30080 -> hostPort: 3000
+# - containerPort: 30081 -> hostPort: 4000
+#
+# Access via:
+# - Dashboard: http://localhost:3000
+# - Socket.io: http://localhost:4000
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboardm8-nodeport
+  namespace: cptm8-dev
+  labels:
+    app: dashboardm8
+    environment: development
+    tier: frontend
+  annotations:
+    deployed-by: kustomize
+    documentation: See FRONTEND-EXPOSURE-GUIDE.md for usage instructions
+spec:
+  type: NodePort
+  selector:
+    app: dashboardm8
+    environment: development
+  ports:
+    - name: http
+      port: 3000
+      targetPort: 3000
+      nodePort: 30080  # Maps to localhost:3000 via Kind extraPortMappings
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: socketm8-nodeport
+  namespace: cptm8-dev
+  labels:
+    app: socketm8
+    environment: development
+    tier: frontend
+  annotations:
+    deployed-by: kustomize
+    documentation: See FRONTEND-EXPOSURE-GUIDE.md for usage instructions
+spec:
+  type: NodePort
+  selector:
+    app: socketm8
+    environment: development
+  ports:
+    - name: http
+      port: 4000
+      targetPort: 4000
+      nodePort: 30081  # Maps to localhost:4000 via Kind extraPortMappings
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmqm8-nodeport
+  namespace: cptm8-dev
+  labels:
+    app: rabbitmq
+    environment: development
+    tier: backend
+spec:
+  type: NodePort
+  selector:
+    app: rabbitmq
+    environment: development
+  ports:
+    - name: http
+      port: 15672
+      targetPort: 15672
+      nodePort: 30672  # Maps to localhost:15672 via Kind extraPortMappings
+      protocol: TCP

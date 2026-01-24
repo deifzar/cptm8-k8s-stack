@@ -1,0 +1,156 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: socketm8
+  namespace: cptm8-dev
+  labels:
+    app: socketm8
+    environment: development
+    tier: application
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: socketm8
+      environment: development
+  template:
+    metadata:
+      labels:
+        app: socketm8
+        environment: development
+        tier: application
+        component: frontend
+    spec:
+      # ECR authentication for private images
+      imagePullSecrets:
+      - name: ecr-registry-secret
+      containers:
+        - name: socketm8
+          image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-frontend/socketm8-dev
+          env:
+          - name: NODE_ENV
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: NODE_ENV
+          - name: SOCKETM8_HOSTNAME
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: SOCKETM8_HOSTNAME
+          - name: PORT
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: SOCKETM8_PORT
+          - name: POSTGRESQL_HOSTNAME
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: POSTGRESQL_HOSTNAME
+          - name: RabbitMQ_EXCHANGE
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: RabbitMQ_EXCHANGE
+          - name: SMTP_SERVER
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: SMTP_SERVER
+          - name: SMTP_EMAILSENDER
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: SMTP_EMAILSENDER
+          - name: NEXT_DASHBOARD_URL
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: NEXT_DASHBOARD_URL
+          - name: USER_EMAIL_DOMAIN
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: USER_EMAIL_DOMAIN
+          - name: CORS
+            valueFrom:
+              configMapKeyRef:
+                name: cptm8-config
+                key: CORS
+          # Secret references
+          - name: PPG_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: postgresql-secrets
+                key: postgresql-database-url
+          - name: PMG_DATABASE_URL
+            valueFrom:
+              secretKeyRef:
+                name: mongodb-secrets
+                key: mongodb-database-url
+          - name: RabbitMQ_URL
+            valueFrom:
+              secretKeyRef:
+                name: rabbitmq-secrets
+                key: rabbitmq-url
+          - name: SMTP_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: smtp-secrets
+                key: smtp-username
+          - name: SMTP_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: smtp-secrets
+                key: smtp-password
+          ports:
+          - containerPort: 4000
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 4000
+            initialDelaySeconds: 180
+            periodSeconds: 5           # Check every 5 seconds
+            timeoutSeconds: 3          # 3 second timeout
+            successThreshold: 1        # 1 success to mark ready
+            failureThreshold: 3        # 3 failures to mark not ready
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 4000
+            initialDelaySeconds: 180
+            periodSeconds: 5           # Check every 5 seconds
+            timeoutSeconds: 3          # 3 second timeout
+            successThreshold: 1        # 1 success to mark ready
+            failureThreshold: 3        # 3 failures to mark not ready
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001  # Node.js default user
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false 
+            capabilities:
+              drop:
+              - ALL
+          volumeMounts:
+          # Override docker-entrypoint.sh with Kubernetes-compatible version
+          - name: entrypoint-override
+            mountPath: /usr/local/bin/docker-entrypoint.sh
+            subPath: docker-entrypoint.sh
+            readOnly: true
+      volumes:
+      # ConfigMap with Kubernetes-compatible docker-entrypoint.sh
+      - name: entrypoint-override
+        configMap:
+          name: docker-entrypoint-socketm8-frontend
+          defaultMode: 0755  # Make script executable
+      securityContext:
+        fsGroup: 1001  # Match Node.js user

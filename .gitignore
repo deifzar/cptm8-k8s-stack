@@ -1,0 +1,31 @@
+# examples
+/examples/*
+
+# secrets
+/secrets/*
+!/secrets/secrets-dev.example.yaml
+!/secrets/.gitkeep
+
+key.txt
+
+# configmaps
+configmaps/config-dev.yaml
+configmaps/opensearch-config-dev.yaml
+
+# scripts
+validate-deployment.sh
+environment_vars_setup.sh
+cleanup-volumes.sh
+
+# AI
+.claude/*
+CLAUDE.md
+
+# IAM sensitive files
+/cptm8-aws-iam-setup/*
+/cptm8-azure-iam-setup/*
+
+# docs
+/docs/*
+!/docs/ARCHITECTURE.md
+!/docs/deployment/

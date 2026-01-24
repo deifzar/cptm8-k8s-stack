@@ -1,0 +1,60 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ecr-token-refresher
+  namespace: cptm8-dev
+spec:
+  schedule: "0 */8 * * *"  # Every 8 hours
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: ecr-token-refresher
+          restartPolicy: OnFailure
+          containers:
+          - name: refresh-token
+            image: amazon/aws-cli:latest
+            env:
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: cptm8-config
+                  key: AWS_REGION
+            - name: AWS_ACCOUNT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: cptm8-config
+                  key: AWS_ACCOUNT_ID
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-ecr-credentials
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-ecr-credentials
+                  key: aws-secret-access-key
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "🔄 Installing kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+              chmod +x kubectl
+              mv kubectl /usr/local/bin/
+              echo "🔄 Refreshing ECR token..."
+              # Get new ECR token
+              ECR_TOKEN=$(aws ecr get-login-password --region ${AWS_REGION})
+              # Delete old secret
+              kubectl delete secret ecr-registry-secret -n cptm8-dev --ignore-not-found=true
+              # Create new secret
+              kubectl create secret docker-registry ecr-registry-secret \
+                --docker-server=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com \
+                --docker-username=AWS \
+                --docker-password="${ECR_TOKEN}" \
+                -n cptm8-dev
+              echo "✅ ECR token refreshed successfully"

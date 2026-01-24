@@ -1,0 +1,327 @@
+# frontend
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboardm8-service
+  namespace: cptm8-dev
+  labels:
+    app: dashboardm8
+    environment: development
+spec:
+  selector:
+    app: dashboardm8
+    environment: development
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: socketm8-service
+  namespace: cptm8-dev
+  labels:
+    app: socketm8
+    environment: development
+spec:
+  selector:
+    app: socketm8
+    environment: development
+  ports:
+    - port: 4000
+      targetPort: 4000
+  type: ClusterIP
+---
+# backend
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-service
+  namespace: cptm8-dev
+  labels:
+    app: postgresql
+    environment: development
+spec:
+  selector:
+    app: postgresqlm8
+    environment: development
+  ports:
+    - port: 5432
+      targetPort: 5432
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-headless
+  namespace: cptm8-dev
+  labels:
+    app: postgresql
+    environment: development
+spec:
+  clusterIP: None # Headless
+  selector:
+    app: postgresqlm8
+    environment: development
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-primary-service
+  namespace: cptm8-dev
+  labels:
+    app: mongodb
+    environment: development
+spec:
+  selector:
+    app: mongodb-primary
+    environment: development
+  ports:
+    - port: 27017
+      targetPort: 27017
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-primary-headless
+  namespace: cptm8-dev
+  labels:
+    app: mongodb
+    environment: development
+spec:
+  clusterIP: None
+  selector:
+    app: mongodb-primary
+    environment: development
+  ports:
+    - port: 27017
+      targetPort: 27017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-service
+  namespace: cptm8-dev
+  labels:
+    app: rabbitmq
+    environment: development
+spec:
+  selector:
+    app: rabbitmq
+    environment: development
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-headless
+  namespace: cptm8-dev
+  labels:
+    app: rabbitmq
+    environment: development
+spec:
+  clusterIP: None  # Headless service
+  selector:
+    app: rabbitmq
+    environment: development
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: 5672
+    - name: management
+      port: 15672
+      targetPort: 15672
+---
+# Headless service for StatefulSet pod DNS (required for cluster discovery)
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-cluster
+  namespace: cptm8-dev
+  labels:
+    app: opensearch
+    environment: development
+spec:
+  clusterIP: None  # Headless service
+  selector:
+    opensearch-role: master  # Selects all OpenSearch master nodes
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+    - name: transport
+      port: 9300
+      targetPort: 9300
+    - name: perf
+      port: 9600
+      targetPort: 9600
+---
+# Regular ClusterIP service for external access to OpenSearch
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-service
+  namespace: cptm8-dev
+  labels:
+    app: opensearch
+    environment: development
+spec:
+  selector:
+    opensearch-role: master
+  ports:
+    - name: http
+      port: 9200
+      targetPort: 9200
+    - name: perf
+      port: 9600
+      targetPort: 9600
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-dashboard-service
+  namespace: cptm8-dev
+  labels:
+    app: opensearch-dashboard
+    environment: development
+spec:
+  selector:
+    app: opensearch-dashboard
+    environment: development
+  ports:
+    - port: 5601
+      targetPort: 5601
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector-service
+  namespace: cptm8-dev
+  labels:
+    app: vector
+    environment: development
+spec:
+  selector:
+    app: vector
+    environment: development
+  ports:
+    - port: 8686
+      targetPort: 8686
+  type: ClusterIP
+---
+# Go Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: asmm8-service
+  namespace: cptm8-dev
+  labels:
+    app: asmm8
+    environment: development
+spec:
+  selector:
+    app: asmm8
+    environment: development
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: naabum8-service
+  namespace: cptm8-dev
+  labels:
+    app: naabum8
+    environment: development
+spec:
+  selector:
+    app: naabum8
+    environment: development
+  ports:
+    - port: 8001
+      targetPort: 8001
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: katanam8-service
+  namespace: cptm8-dev
+  labels:
+    app: katanam8
+    environment: development
+spec:
+  selector:
+    app: katanam8
+    environment: development
+  ports:
+    - port: 8002
+      targetPort: 8002
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: num8-service
+  namespace: cptm8-dev
+  labels:
+    app: num8
+    environment: development
+spec:
+  selector:
+    app: num8
+    environment: development
+  ports:
+    - port: 8003
+      targetPort: 8003
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reportingm8-service
+  namespace: cptm8-dev
+  labels:
+    app: reportingm8
+    environment: development
+spec:
+  selector:
+    app: reportingm8
+    environment: development
+  ports:
+    - port: 8004
+      targetPort: 8004
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orchestratorm8-service
+  namespace: cptm8-dev
+  labels:
+    app: orchestratorm8
+    environment: development
+spec:
+  selector:
+    app: orchestratorm8
+    environment: development
+  ports:
+    - port: 8005
+      targetPort: 8005
+  type: ClusterIP

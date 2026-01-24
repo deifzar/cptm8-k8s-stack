@@ -1,0 +1,208 @@
+# jobs/mongodb-init-job-dev.yaml
+# Kubernetes Job to initialize MongoDB replica set (equivalent to mongodb-init service in Docker Compose)
+# This Job runs ONCE to initialize the replica set, wait for PRIMARY election, and create database/user
+#
+# Usage:
+#   1. Deploy MongoDB StatefulSet first: kubectl apply -f deployments/mongodb-dev.yaml
+#   2. Wait for MongoDB pod to be running: kubectl wait --for=condition=Ready pod/mongodb-primary-0 -n cptm8-dev --timeout=120s
+#   3. Run this job: kubectl apply -f jobs/mongodb-init-job-dev.yaml
+#   4. Check job status: kubectl get jobs -n cptm8-dev mongodb-init
+#   5. View logs: kubectl logs -n cptm8-dev job/mongodb-init
+#
+# Note: This job can be safely re-run if it fails. The script handles already-initialized replica sets gracefully.
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: mongodb-init
+  namespace: cptm8-dev
+  labels:
+    app: mongodb-init
+    environment: development
+    tier: data
+spec:
+  # Keep completed job for 1 hour for log inspection
+  ttlSecondsAfterFinished: 3600
+  # Retry up to 3 times if it fails
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: mongodb-init
+        environment: development
+        tier: data
+    spec:
+      restartPolicy: OnFailure
+      containers:
+      - name: mongodb-init
+        image: mongo:7.0
+        env:
+        # MongoDB connection settings
+        - name: MONGO_INITDB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: MONGO_INITDB_DATABASE
+        - name: MONGO_INITDB_COLLECTION
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: MONGO_INITDB_COLLECTION
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: MONGO_INITDB_ROOT_USERNAME
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: mongodb-root-password
+        - name: MONGO_NON_ROOT_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: MONGO_NON_ROOT_USERNAME
+        - name: MONGO_NON_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-secrets
+              key: mongodb-user-password
+        # MongoDB host (use service DNS name)
+        - name: MONGO_HOST
+          value: "mongodb-primary-service.cptm8-dev.svc.cluster.local:27017"
+        command:
+        - /bin/bash
+        - -c
+        - |
+          set -e
+
+          echo '========================================='
+          echo 'MongoDB Replica Set Initialization'
+          echo '========================================='
+          echo "MongoDB Host: ${MONGO_HOST}"
+          echo "Replica Set: rs0"
+          echo "Database: ${MONGO_INITDB_DATABASE}"
+          echo '========================================='
+
+          echo ''
+          echo '🔍 Step 1: Waiting for MongoDB to be ready...'
+          sleep 30
+
+          # Test connection WITHOUT authentication (MongoDB starts without auth by default)
+          if mongosh --host ${MONGO_HOST} --eval "db.adminCommand('ping')" --quiet 2>/dev/null; then
+            echo '✅ MongoDB is reachable (no auth)'
+          else
+            echo '❌ MongoDB is not reachable. Exiting...'
+            exit 1
+          fi
+
+          echo ''
+          echo '🔧 Step 2: Initializing replica set...'
+          mongosh --host ${MONGO_HOST} --eval '
+            rs.initiate({
+              _id: "rs0",
+              members: [
+                {_id: 0, host: "mongodb-primary-service.cptm8-dev.svc.cluster.local:27017", priority: 1}
+              ]
+            })
+          ' && echo '✅ Replica set initialized' || echo '⚠️  Replica set may already be initialized (this is OK)'
+
+          echo ''
+          echo '⏳ Step 3: Waiting for replica set to elect primary...'
+          timeout=60
+          elapsed=0
+          while [ $elapsed -lt $timeout ]; do
+            echo "   Checking if primary is available... ($elapsed/$timeout seconds)"
+            if mongosh --host ${MONGO_HOST} --eval 'rs.isMaster().ismaster' --quiet 2>/dev/null | grep -q true; then
+              echo '✅ Primary node is ready!'
+              break
+            fi
+            sleep 5
+            elapsed=$((elapsed + 5))
+          done
+
+          if [ $elapsed -ge $timeout ]; then
+            echo '❌ Timeout waiting for primary election'
+            exit 1
+          fi
+
+          echo ''
+          echo '📊 Step 4: Checking replica set status...'
+          mongosh --host ${MONGO_HOST} --eval 'rs.status()' --quiet
+
+          echo ''
+          echo '👤 Step 5: Creating admin/root user and application database/user...'
+          echo '   (Creating both in same connection using localhost exception)'
+          mongosh --host ${MONGO_HOST} --eval "
+            // Create root user in admin database
+            db = db.getSiblingDB('admin');
+            try {
+              db.createUser({
+                user: '${MONGO_INITDB_ROOT_USERNAME}',
+                pwd: '${MONGO_INITDB_ROOT_PASSWORD}',
+                mechanisms: ['SCRAM-SHA-256'],
+                roles: [
+                  {role: 'root', db: 'admin'}
+                ]
+              });
+              print('✅ Root user ${MONGO_INITDB_ROOT_USERNAME} created');
+            } catch (e) {
+              if (e.code === 51003) {
+                print('ℹ️  Root user ${MONGO_INITDB_ROOT_USERNAME} already exists');
+              } else {
+                throw e;
+              }
+            }
+
+            // Create application database and user
+            db = db.getSiblingDB('${MONGO_INITDB_DATABASE}');
+
+            // Create collection if it doesn't exist
+            if (!db.getCollectionNames().includes('${MONGO_INITDB_COLLECTION}')) {
+              db.createCollection('${MONGO_INITDB_COLLECTION}');
+              print('✅ Collection ${MONGO_INITDB_COLLECTION} created');
+            } else {
+              print('ℹ️  Collection ${MONGO_INITDB_COLLECTION} already exists');
+            }
+
+            // Create application user if doesn't exist
+            try {
+              db.createUser({
+                user: '${MONGO_NON_ROOT_USERNAME}',
+                pwd: '${MONGO_NON_ROOT_PASSWORD}',
+                mechanisms: ['SCRAM-SHA-256'],
+                roles: [{role: 'dbOwner', db: '${MONGO_INITDB_DATABASE}'}]
+              });
+              print('✅ User ${MONGO_NON_ROOT_USERNAME} created with dbOwner role');
+            } catch (e) {
+              if (e.code === 51003) {
+                print('ℹ️  User ${MONGO_NON_ROOT_USERNAME} already exists');
+              } else {
+                throw e;
+              }
+            }
+          "
+
+          echo ''
+          echo '========================================='
+          echo '✅ MongoDB replica set initialization completed successfully!'
+          echo '========================================='
+          echo ''
+          echo 'Replica Set Status:'
+          mongosh --host ${MONGO_HOST} --username ${MONGO_INITDB_ROOT_USERNAME} --password ${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin --eval 'rs.status().members.forEach(function(member) { print("  - " + member.name + ": " + member.stateStr); })'
+          echo ''
+          echo 'Database Info:'
+          mongosh --host ${MONGO_HOST} --username ${MONGO_INITDB_ROOT_USERNAME} --password ${MONGO_INITDB_ROOT_PASSWORD} --authenticationDatabase admin --eval "
+            use ${MONGO_INITDB_DATABASE};
+            print('  - Database: ${MONGO_INITDB_DATABASE}');
+            print('  - Collections: ' + db.getCollectionNames());
+            print('  - Users: ' + db.getUsers().map(u => u.user));
+          "
+
+          echo ''
+          echo '⚠️  IMPORTANT: MongoDB is currently running WITHOUT authentication enabled!'
+          echo '   To enable authentication, you need to:'
+          echo '   1. Update mongodb-dev.yaml to add --auth flag'
+          echo '   2. Restart MongoDB pods'
+          echo '   For development, you may leave auth disabled for simplicity.'

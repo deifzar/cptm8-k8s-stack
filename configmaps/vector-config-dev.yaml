@@ -1,0 +1,124 @@
+# Vector Configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-config
+  namespace: cptm8-dev
+data:
+  vector.yaml: |
+    # Vector Configuration for CPTm8 Development Environment
+    api:
+      enabled: true
+      address: "0.0.0.0:8686"
+      playground: true
+
+    # Data directory for Vector's internal state
+    data_dir: "/tmp/vector"
+
+    # Sources - Input from log files
+    sources:
+      orchestratorm8_logs:
+        type: file
+        include:
+          - "/var/log/orchestratorm8/*.log"
+        read_from: beginning
+
+      asmm8_logs:
+        type: file
+        include:
+          - "/var/log/asmm8/*.log"
+        read_from: beginning
+
+      naabum8_logs:
+        type: file
+        include:
+          - "/var/log/naabum8/*.log"
+        read_from: beginning
+
+      katanam8_logs:
+        type: file
+        include:
+          - "/var/log/katanam8/*.log"
+        read_from: beginning
+
+      num8_logs:
+        type: file
+        include:
+          - "/var/log/num8/*.log"
+        read_from: beginning
+
+      reportingm8_logs:
+        type: file
+        include:
+          - "/var/log/reportingm8/*.log"
+        read_from: beginning
+
+    # Transforms - Process and enrich log data
+    transforms:
+      parse_logs:
+        type: remap
+        inputs:
+          - "orchestratorm8_logs"
+          - "asmm8_logs"
+          - "naabum8_logs"
+          - "katanam8_logs"
+          - "num8_logs"
+          - "reportingm8_logs"
+        source: |
+          # Parse JSON if possible, otherwise keep as text
+          . = parse_json(.message) ?? {"message": .message}
+          
+          # Add service name based on source
+          if contains(string!(.source_type), "orchestratorm8") {
+            .service = "orchestratorm8"
+          } else if contains(string!(.source_type), "asmm8") {
+            .service = "asmm8"
+          } else if contains(string!(.source_type), "naabum8") {
+            .service = "naabum8"
+          } else if contains(string!(.source_type), "katanam8") {
+            .service = "katanam8"
+          } else if contains(string!(.source_type), "num8") {
+            .service = "num8"
+          } else if contains(string!(.source_type), "reportingm8") {
+            .service = "reportingm8"
+          }
+          
+          # Add environment and namespace
+          .environment = "development"
+          .namespace = "cptm8-dev"
+          
+          # Add timestamp if not present
+          if !exists(.timestamp) {
+            .timestamp = now()
+          }
+
+    # Sinks - Output destinations
+    sinks:
+      opensearch_sink:
+        type: elasticsearch
+        inputs:
+          - "parse_logs"
+        endpoints:
+          - "http://opensearch-service.cptm8-dev.svc.cluster.local:9200"
+        mode: "bulk"
+        bulk:
+          index: "cptm8-logs-dev-%Y.%m.%d"
+          action: "index"
+        request:
+          timeout_secs: 60
+          retry_attempts: 5
+          retry_max_duration_secs: 300
+          retry_initial_backoff_secs: 1
+        buffer:
+          type: "disk"
+          max_size: 268435488  # 256MB (minimum required)
+          when_full: "block"
+
+      # Console output for development debugging
+      console_sink:
+        type: console
+        inputs:
+          - "parse_logs"
+        encoding:
+          codec: json
+        target: "stdout"
