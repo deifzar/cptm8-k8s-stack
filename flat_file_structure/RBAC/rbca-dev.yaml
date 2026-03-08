@@ -17,20 +17,13 @@ metadata:
   name: dev-team-dev
   namespace: cptm8-dev
 subjects:
-- kind: User
-  name: dev-team
+- kind: Group
+  name: cptm8-developers      # All members of this group get permissions
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role
   name: cptm8-dev-developer
   apiGroup: rbac.authorization.k8s.io
----
-# Service Account for Vector
-apiVersion: v1
-kind: ServiceAccount
-metadata:
-  name: vector-sa
-  namespace: cptm8-dev
 ---
 # Service Account for AWS ECR
 apiVersion: v1
@@ -63,24 +56,33 @@ subjects:
   name: ecr-token-refresher
   namespace: cptm8-dev
 ---
-# ClusterRole for Vector (if needed for log collection)
+# Service Account for Vector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector-sa
+  namespace: cptm8-dev
+---
+# Role for Vector (if needed for log collection)
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
   name: vector-logs
+  namespace: cptm8-dev    # ← Only this namespace
 rules:
 - apiGroups: [""]
-  resources: ["pods", "pods/log"]
+  resources: ["pods"]
   verbs: ["get", "list", "watch"]
 ---
 # ClusterRoleBinding for Vector
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
+kind: RoleBinding
 metadata:
   name: vector-logs-binding
+  namespace: cptm8-dev
 roleRef:
   apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
+  kind: Role
   name: vector-logs
 subjects:
 - kind: ServiceAccount

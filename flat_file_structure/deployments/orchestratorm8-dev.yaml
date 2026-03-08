@@ -73,7 +73,7 @@ spec:
           runAsUser: 0
       containers:
       - name: orchestratorm8
-        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-backend/orchestratorm8-dev
+        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/orchestratorm8:dev-latest
         env:
         - name: SERVICEM8_NAME
           value: "orchestratorm8"

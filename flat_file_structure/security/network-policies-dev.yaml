@@ -10,11 +10,17 @@ spec:
   - Ingress
   - Egress
   ingress:
-  # Allow intra-namespace communication
+  # 1. Allow the Nginx Ingress Controller to reach the frontend
   - from:
-    - namespaceSelector:
+    - namespaceSelector: {} # Allows traffic from other namespaces (where Nginx usually lives)
+      podSelector:
         matchLabels:
-          name: cptm8-dev
+          app.kubernetes.io/component: controller # Standard Nginx label
+  # 2. (Optional) Allow internal pod-to-pod communication if needed
+  - from:
+    - podSelector:
+        matchLabels:
+          component: frontend
   # Allow monitoring namespace access
   - from:
     - namespaceSelector:
@@ -63,6 +69,7 @@ spec:
       component: scanner
   policyTypes:
   - Egress
+  - Ingress
   egress:
   # Allow all egress for scanning services (they need to scan external targets)
   - to: []

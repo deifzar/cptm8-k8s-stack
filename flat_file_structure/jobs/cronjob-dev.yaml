@@ -15,7 +15,7 @@ spec:
           restartPolicy: OnFailure
           containers:
           - name: refresh-token
-            image: amazon/aws-cli:latest
+            image: amazon/aws-cli:2.34.4
             env:
             - name: AWS_REGION
               valueFrom:
