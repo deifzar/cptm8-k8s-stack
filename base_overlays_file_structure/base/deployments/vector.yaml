@@ -6,6 +6,7 @@ metadata:
   labels:
     app: vector
     tier: logging
+    component: collector
 spec:
   selector:
     matchLabels:
@@ -15,6 +16,7 @@ spec:
       labels:
         app: vector
         tier: logging
+        component: collector
     spec:
       # Init container to wait for OpenSearch
       initContainers:

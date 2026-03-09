@@ -6,6 +6,7 @@ metadata:
   labels:
     app: postgresqlm8
     tier: data
+    component: schema
 spec:
   serviceName: postgresql-headless
   selector:
@@ -16,6 +17,7 @@ spec:
       labels:
         app: postgresqlm8
         tier: data
+        component: schema
     spec:
       containers:
       - name: postgresqlm8

@@ -6,6 +6,7 @@ metadata:
   labels:
     app: opensearch-node1
     tier: logging
+    component: storage
 spec:
   serviceName: opensearch-cluster
   selector:
@@ -16,6 +17,7 @@ spec:
       labels:
         app: opensearch-node1
         tier: logging
+        component: storage
         opensearch-role: master
     spec:
       containers:
@@ -107,6 +109,7 @@ metadata:
   labels:
     app: opensearch-node2
     tier: logging
+    component: storage
 spec:
   serviceName: opensearch-cluster
   selector:
@@ -117,6 +120,7 @@ spec:
       labels:
         app: opensearch-node2
         tier: logging
+        component: storage
         opensearch-role: master
     spec:
       containers:

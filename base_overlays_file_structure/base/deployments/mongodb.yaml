@@ -6,6 +6,7 @@ metadata:
   labels:
     app: mongodb-primary
     tier: data
+    component: chat
 spec:
   serviceName: mongodb-primary-headless
   selector:
@@ -16,6 +17,7 @@ spec:
       labels:
         app: mongodb-primary
         tier: data
+        component: chat
         mongodb-role: primary
     spec:
       containers:

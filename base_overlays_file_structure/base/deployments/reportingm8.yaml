@@ -6,7 +6,7 @@ metadata:
   labels:
     app: reportingm8
     tier: application
-    component: scanner
+    component: reporting
 spec:
   selector:
     matchLabels:
@@ -16,7 +16,7 @@ spec:
       labels:
         app: reportingm8
         tier: application
-        component: scanner
+        component: reporting
     spec:
       # ECR authentication for private images
       imagePullSecrets:
