@@ -61,6 +61,9 @@ resources:
   # 10. CronJobs (periodic tasks)
   - jobs/cronjob-dev.yaml
 
+  # 11. Network Policy
+  - security/network-policies-dev.yaml
+
   # Note: MongoDB init job (jobs/mongodb-init-job-dev.yaml) is run MANUALLY after MongoDB deployment
   # Run with: kubectl apply -f jobs/mongodb-init-job-dev.yaml
   # This job initializes the replica set, creates admin user, and application database/user
@@ -76,4 +79,4 @@ labels:
 # Common annotations for better resource management
 commonAnnotations:
   deployed-by: kustomize
-  documentation: "See DEPLOYMENT.md for usage instructions"
+  documentation: "See docs/deployment/flat_file_structure/local-deployment-guide.md and frontend-exposure-guide.md for usage instructions"

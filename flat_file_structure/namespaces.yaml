@@ -16,8 +16,8 @@ metadata:
   labels:
     app.kubernetes.io/name: cptm8
     environment: staging
-    security-level: medium
-    data-classification: test
+    security-level: high
+    data-classification: sensitive
 ---
 apiVersion: v1
 kind: Namespace
@@ -26,7 +26,7 @@ metadata:
   labels:
     app.kubernetes.io/name: cptm8
     environment: development
-    security-level: development
+    security-level: medium
     data-classification: synthetic
 ---
 apiVersion: v1
