@@ -1,88 +1,243 @@
-# overlays/staging/security/network-policies.yaml
+# security/network-policies-dev.yaml
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: frontend-backend-policy
+  name: cptm8-dev-default-deny-all-policy
+  namespace: cptm8-staging
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-frontend-policy
+  namespace: cptm8-dev
 spec:
   podSelector:
     matchLabels:
+      tier: application
       component: frontend
   policyTypes:
   - Ingress
   - Egress
   ingress:
+  # Allow from ingress controller (external traffic)
   - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  egress:
+  # Allow to application tier (backend APIs)
+  - to:
     - podSelector:
         matchLabels:
-          component: frontend
-  egress:
+          tier: application
+  # Allow to databases (PostgreSQL, MongoDB)
   - to:
     - podSelector:
         matchLabels:
           tier: data
-    - podSelector:
-        matchLabels:
-          tier: messaging
-    ports:
-    - port: 5432
-      protocol: TCP
-    - port: 27017
-      protocol: TCP
-    - port: 5672
-      protocol: TCP
+  # Allow to messaging (socketm8 → RabbitMQ)
   - to:
     - podSelector:
         matchLabels:
-          tier: logging
+          tier: messaging
+  # Allow external HTTPS (for ECR, AWS APIs, etc.)
+  - to: []
     ports:
-    - port: 9200
-      protocol: TCP
-  - to:  # Allow external HTTPS for APIs
-    - namespaceSelector: {}
-    ports:
-    - port: 80
-      protocol: TCP
-    - port: 443
-      protocol: TCP
-  - to:  # Allow DNS
-    - namespaceSelector:
-        matchLabels:
-          name: kube-system
-    - podSelector:
-        matchLabels:
-          k8s-app: kube-dns
-    ports:
-    - port: 53
-      protocol: UDP
+    - protocol: TCP
+      port: 443
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: database-policy
+  name: cptm8-dev-opensearchdashboard-policy
+  namespace: cptm8-dev
+spec:
+  podSelector:
+    matchLabels:
+      tier: logging
+      component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from ingress controller (external traffic)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  egress:
+  # Allow to logging tier (opensearch and vector)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: logging
+  # Allow external HTTPS (updates ?)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-database-tier-policy
+  namespace: cptm8-dev
 spec:
   podSelector:
     matchLabels:
       tier: data
   policyTypes:
   - Ingress
-  - Egress
   ingress:
+  # Allow from application (frontend, scanners, reporting)
   - from:
     - podSelector:
         matchLabels:
           tier: application
-  egress:
-  # Allow egress for scanning and logging services (they need to scan external targets)
-  - to: 
-    - podSelector:
-        matchLabels:
-          tier: application
-          component: scanner
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: logging-policy
+  name: cptm8-dev-messaging-tier-policy
+  namespace: cptm8-dev
+spec:
+  podSelector:
+    matchLabels:
+      tier: messaging
+  policyTypes:
+  - Egress
+  - Ingress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  ingress:
+  # RabbitMQ receives from scanners (publish/consume)
+  - from:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  # RabbitMQ receives from socketm8 (real-time updates)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: socketm8
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-reporting-tier-policy
+  namespace: cptm8-dev
+spec:
+  podSelector:
+    matchLabels:
+      component: reporting
+  policyTypes:
+  - Egress
+  - Ingress
+  egress:
+  # Allow to databases (PostgreSQL)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow to messaging (RabbitMQ)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: messaging
+    ports:
+    - protocol: TCP
+      port: 5672
+  # Allow HTTPS for external APIs
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8       # Exclude private ranges (use internal policies)
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+  ingress:
+  # Allow from orchestratorm8
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - orchestratorm8
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-scanner-tier-policy
+  namespace: cptm8-dev
+spec:
+  podSelector:
+    matchLabels:
+      component: scanner
+  policyTypes:
+  - Egress
+  - Ingress
+  egress:
+  # Allow to databases (PostgreSQL + MongoDB)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    ports:
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 27017
+  # Allow to messaging (RabbitMQ)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: messaging
+    ports:
+    - protocol: TCP
+      port: 5672
+  # Allow communication between scanners (via orchestratorm8)
+  - to:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  # IMPORTANT: Scanners need unrestricted external egress for scanning targets
+  # naabum8 scans arbitrary ports, asmm8 queries external DNS, num8 probes services
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8       # Exclude private ranges (use internal policies)
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+  ingress:
+  # Allow from orchestrator and other scanners
+  - from:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  # Allow from RabbitMQ (message delivery)
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: messaging
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-logging-tier-policy
+  namespace: cptm8-dev
 spec:
   podSelector:
     matchLabels:
@@ -95,43 +250,66 @@ spec:
     - podSelector:
         matchLabels:
           tier: logging
-    - podSelector:
-        matchLabels:
-          app: opensearch-dashboard
-          component: frontend
   egress:
-  # Allow egress for scanning and logging services (they need to scan external targets)
-  - to: 
+  # Allow intra-tier communication (Vector → OpenSearch, OpenSearch cluster)
+  - to:
     - podSelector:
         matchLabels:
           tier: logging
-    - podSelector:
-        matchLabels:
-          tier: application
-          component: scanner
+    ports:
+    - protocol: TCP
+      port: 9200    # OpenSearch HTTP API
+    - protocol: TCP
+      port: 9300    # OpenSearch cluster transport
 ---
-# Special network policy for scanning services
+# DNS egress policy for all pods
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: scanner-services-policy
+  name: cptm8-dev-dns-egress-policy
+  namespace: cptm8-dev
 spec:
-  podSelector:
-    matchLabels:
-      component: scanner
+  podSelector: {}  # Apply to all pods in namespace
   policyTypes:
   - Egress
-  - Ingress
   egress:
-  # Allow all egress (they need to scan external targets)
+  - to:  # Allow DNS
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    - podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+---
+# SMTP egress policy for services that send email notifications
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-smtp-egress-policy
+  namespace: cptm8-dev
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - reportingm8
+      - dashboardm8
+      - socketm8
+  policyTypes:
+  - Egress
+  egress:
+  # Allow SMTP/SMTPS for email notifications
   - to: []
-  ingress:
-  - from:
-    - podSelector:
-        matchLabels:
-          app: vector
-          tier: logging
-    - podSelector:
-        matchLabels:
-          app: rabbitmq
-          tier: messaging
+    ports:
+    - protocol: TCP
+      port: 25      # SMTP
+    - protocol: TCP
+      port: 587     # SMTP submission (STARTTLS)
+    - protocol: TCP
+      port: 465     # SMTPS (implicit TLS)
