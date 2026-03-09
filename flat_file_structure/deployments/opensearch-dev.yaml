@@ -8,6 +8,7 @@ metadata:
     app: opensearch-node1
     environment: development
     tier: logging
+    component: storage
 spec:
   serviceName: opensearch-cluster
   replicas: 1
@@ -21,6 +22,7 @@ spec:
         app: opensearch-node1
         environment: development
         tier: logging
+        component: storage
         opensearch-role: master
     spec:
       containers:
@@ -124,7 +126,8 @@ metadata:
   labels:
     app: opensearch-node2
     environment: development
-    tier: data
+    tier: logging
+    component: storage
 spec:
   serviceName: opensearch-cluster
   replicas: 1
@@ -137,7 +140,8 @@ spec:
       labels:
         app: opensearch-node2
         environment: development
-        tier: data
+        tier: logging
+        component: storage
         opensearch-role: master
     spec:
       containers:
@@ -241,7 +245,8 @@ metadata:
   labels:
     app: opensearch-dashboard
     environment: development
-    tier: frontend
+    tier: logging
+    component: frontend
 spec:
   replicas: 1
   selector:
@@ -253,7 +258,8 @@ spec:
       labels:
         app: opensearch-dashboard
         environment: development
-        tier: frontend
+        tier: logging
+        component: frontend
     spec:
       containers:
       - name: opensearch-dashboard

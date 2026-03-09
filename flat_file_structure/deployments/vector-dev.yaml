@@ -8,6 +8,7 @@ metadata:
     app: vector
     environment: development
     tier: logging
+    component: collector
 spec:
   replicas: 1
   selector:
@@ -20,6 +21,7 @@ spec:
         app: vector
         environment: development
         tier: logging
+        component: collector
     spec:
       # Init container to wait for OpenSearch
       initContainers:

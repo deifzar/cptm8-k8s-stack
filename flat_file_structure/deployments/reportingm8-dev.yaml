@@ -8,7 +8,7 @@ metadata:
     app: reportingm8
     environment: development
     tier: application
-    component: scanner
+    component: reporting
 spec:
   replicas: 1
   selector:
@@ -21,7 +21,7 @@ spec:
         app: reportingm8
         environment: development
         tier: application
-        component: scanner
+        component: reporting
     spec:
       # ECR authentication for private images
       imagePullSecrets:

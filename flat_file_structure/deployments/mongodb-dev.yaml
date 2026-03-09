@@ -8,6 +8,7 @@ metadata:
     app: mongodb-primary
     environment: development
     tier: data
+    component: chat
 spec:
   serviceName: mongodb-primary-headless
   replicas: 1  # Start with single node for dev simplicity
@@ -21,6 +22,7 @@ spec:
         app: mongodb-primary
         environment: development
         tier: data
+        component: chat
         mongodb-role: primary
     spec:
       containers:

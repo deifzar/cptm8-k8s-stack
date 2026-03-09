@@ -8,6 +8,7 @@ metadata:
     app: postgresqlm8
     environment: development
     tier: data
+    component: schema
 spec:
   serviceName: postgresql-headless
   replicas: 1
@@ -21,6 +22,7 @@ spec:
         app: postgresqlm8
         environment: development
         tier: data
+        component: schema
     spec:
       containers:
       - name: postgresqlm8
