@@ -4,8 +4,8 @@
 # secrets
 /flat_file_structure/secrets/*
 !/flat_file_structure/secrets/secrets-dev.example.yaml
-/base_overlays_file_structure/overlays/*/secrets/*
-!/base_overlays_file_structure/overlays/*/secrets/secrets.example.yaml
+/base_overlays_kustomize/overlays/*/secrets/*
+!/base_overlays_kustomize/overlays/*/secrets/secrets.example.yaml
 /secrets/*
 !/secrets/secrets-dev.example.yaml
 !/secrets/.gitkeep
@@ -29,7 +29,7 @@ cleanup-volumes.sh
 .claude/*
 CLAUDE.md
 
-# IAM sensitive files
+# IAM setup sensitive files
 /cptm8-aws-iam-setup/*
 /cptm8-azure-iam-setup/*
 
