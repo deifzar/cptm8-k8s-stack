@@ -1,0 +1,78 @@
+# configmaps/app-config.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cptm8-config
+data:
+  # Environment settings
+  NODE_ENV: "staging"
+  ENVIRONMENT: "staging"
+  LOG_LEVEL: "info"
+
+  # AWS ECR
+  AWS_ACCOUNT_ID: "507745009364"
+  AWS_REGION: "eu-south-2"
+  
+  # POSTGRESQL
+  POSTGRESQL_NON_ROOT_USERNAME: "cpt_dbuser"
+  POSTGRESQL_DB: "cptm8"
+  
+  # MONGODB
+  MONGO_INITDB_ROOT_USERNAME: "admin"
+  MONGO_NON_ROOT_USERNAME: "cpt_dbuser"
+  MONGO_INITDB_DATABASE: "cptm8chat"
+  MONGO_INITDB_COLLECTION: "support"
+  
+  # RABBITMQ settings
+  RabbitMQ_EXCHANGE: "notification" # DO NOT change - env variable for socketm8 to publish messages
+  
+  # SMTP settings
+  SMTP_SERVER: "email-smtp.eu-north-1.amazonaws.com"
+  SMTP_PORT: "587"
+  SMTP_EMAILSENDER: "no-reply@cptm8.net"
+  
+  # FRONTEND settings
+  DASHBOARDM8_PORT: "443"
+  DASHBOARDM8_URL: "https://dashboard-staging.cptm8.net"
+  SOCKETM8_PORT: "443"
+  USER_EMAIL_DOMAIN: "clientcorp.net.au"
+  CLOUD_PROVIDER: "AWS"
+
+  # AuthJS/NextAuth URL - CRITICAL for OAuth callbacks
+  # Must match the external URL accessible from browser
+  AUTH_URL: "https://dashboard-staging.cptm8.net"
+  NEXTAUTH_URL: "https://dashboard-staging.cptm8.net"  # Fallback for NextAuth v4
+
+  NEXT_DASHBOARD_URL: "https://dashboard-staging.cptm8.net"
+  # NEXT_PUBLIC_SOCKET_URL: "http://socket-staging.cptm8.net:4000"  # This env variable is embedded when the Docker image was built.
+  CORS: "http://dashboard-staging.cptm8.net https://socket-staging.cptm8.net" # Split origins with spaces
+  
+  # Report Configuration
+  COMPANY_NAME: "ACME Corp."
+  AWS_BUCKET_REGION: "eu-north-1"
+  AWS_BUCKET_NAME: "report-cptm8"
+
+  # Service hostnames
+  DASHBOARDM8_HOSTNAME: "dashboardm8-service.cptm8-staging.svc.cluster.local"
+  SOCKETM8_HOSTNAME: "socketm8-service.cptm8-staging.svc.cluster.local"
+  
+  RABBITMQ_HOSTNAME: "rabbitmq-service.cptm8-staging.svc.cluster.local"
+  POSTGRESQL_HOSTNAME: "postgresql-service.cptm8-staging.svc.cluster.local"
+  MONGODB1_HOSTNAME: "mongodb-primary-service.cptm8-staging.svc.cluster.local"
+  OPENSEARCH1_HOSTNAME: "opensearch-service.cptm8-staging.svc.cluster.local"
+  OPENSEARCH2_HOSTNAME: "opensearch-node2-service.cptm8-staging.svc.cluster.local"
+  OPENSEARCH_DASHBOARD_HOSTNAME: "opensearch-dashboard-service.cptm8-staging.svc.cluster.local"
+  VECTOR_HOSTNAME: "vector-service.cptm8-staging.svc.cluster.local"
+  
+  ASMM8_HOSTNAME: "asmm8-service.cptm8-staging.svc.cluster.local"
+  NAABUM8_HOSTNAME: "naabum8-service.cptm8-staging.svc.cluster.local"
+  KATANAM8_HOSTNAME: "katanam8-service.cptm8-staging.svc.cluster.local"
+  NUM8_HOSTNAME: "num8-service.cptm8-staging.svc.cluster.local"
+  REPORTINGM8_HOSTNAME: "reportingm8-service.cptm8-staging.svc.cluster.local"
+
+  # staging API endpoints
+  ASMM8_URL: "http://asmm8-service.cptm8-staging.svc.cluster.local:8000"
+  NAABUM8_URL: "http://naabum8-service.cptm8-staging.svc.cluster.local:8001"
+  KATANAM8_URL: "http://katanam8-service.cptm8-staging.svc.cluster.local:8002"
+  NUM8_URL: "http://num8-service.cptm8-staging.svc.cluster.local:8003"
+  REPORTINGM8_URL: "http://reportingm8-service.cptm8-staging.svc.cluster.local:8004"

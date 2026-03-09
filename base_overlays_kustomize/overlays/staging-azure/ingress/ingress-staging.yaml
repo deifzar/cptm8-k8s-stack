@@ -1,0 +1,114 @@
+# Azure AKS Ingress Configuration
+# Option 1: NGINX Ingress Controller (recommended for flexibility)
+# Option 2: Azure Application Gateway Ingress Controller (AGIC) - see annotations below
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cptm8-ingress
+  annotations:
+    # ============================================
+    # NGINX Ingress Controller Annotations
+    # ============================================
+    kubernetes.io/ingress.class: nginx
+
+    # SSL/TLS Configuration
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+
+    # Use cert-manager for automatic certificate management
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # Backend protocol
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+
+    # Proxy settings for WebSocket support (socketm8)
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+
+    # Enable WebSocket upgrades
+    nginx.ingress.kubernetes.io/websocket-services: "socketm8-service"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header X-Frame-Options "SAMEORIGIN" always;
+      add_header X-Content-Type-Options "nosniff" always;
+      add_header X-XSS-Protection "1; mode=block" always;
+      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/limit-connections: "50"
+
+    # ============================================
+    # Azure Application Gateway Annotations (Alternative)
+    # Uncomment below and comment NGINX annotations to use AGIC
+    # ============================================
+    # kubernetes.io/ingress.class: azure/application-gateway
+    # appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    # appgw.ingress.kubernetes.io/connection-draining: "true"
+    # appgw.ingress.kubernetes.io/connection-draining-timeout: "30"
+    # appgw.ingress.kubernetes.io/cookie-based-affinity: "true"
+    # appgw.ingress.kubernetes.io/request-timeout: "300"
+    # appgw.ingress.kubernetes.io/backend-protocol: "http"
+    # appgw.ingress.kubernetes.io/waf-policy-for-path: "/subscriptions/{sub}/resourceGroups/{rg}/providers/Microsoft.Network/applicationGatewayWebApplicationFirewallPolicies/{waf-policy}"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - dashboard-staging.cptm8.net
+    - socket-staging.cptm8.net
+    secretName: cptm8-tls-secret
+  rules:
+  - host: dashboard-staging.cptm8.net
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dashboardm8-service
+            port:
+              number: 3000
+  - host: socket-staging.cptm8.net
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: socketm8-service
+            port:
+              number: 4000
+---
+# ClusterIssuer for Let's Encrypt (requires cert-manager)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@cptm8.net  # Update with your email
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+---
+# ClusterIssuer for Let's Encrypt Staging (for testing)
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@cptm8.net  # Update with your email
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+    - http01:
+        ingress:
+          class: nginx

@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Base resources - environment-agnostic templates
+# These will be customized by overlays (dev, staging, prod)
+
+resources:
+  # RBAC (ServiceAccounts, Roles, RoleBindings)
+  - RBAC/rbac.yaml
+
+  # Services (all ClusterIP and headless services)
+  - services/services.yaml
+
+  # Database infrastructure (StatefulSets)
+  - deployments/postgresql.yaml
+  - deployments/rabbitmq.yaml
+  - deployments/mongodb.yaml
+
+  # Search infrastructure
+  - deployments/opensearch.yaml
+
+  # Backend application services
+  - deployments/asmm8.yaml
+  - deployments/naabum8.yaml
+  - deployments/katanam8.yaml
+  - deployments/num8.yaml
+  - deployments/orchestratorm8.yaml
+  - deployments/reportingm8.yaml
+
+  # Frontend applications
+  - deployments/dashboardm8.yaml
+  - deployments/socketm8.yaml
+
+  # Logging and monitoring
+  - deployments/vector.yaml
+
+  # CronJobs
+  - jobs/cronjob.yaml
+
+# Note: MongoDB init job (jobs/mongodb-init-job.yaml) is typically run manually
+# after MongoDB deployment, so it's not included in the automatic deployment.
+# Overlays can choose to include it if needed.
