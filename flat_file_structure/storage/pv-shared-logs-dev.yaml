@@ -18,7 +18,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: asmm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -40,7 +41,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: naabum8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -62,7 +64,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: katanam8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -84,7 +87,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: num8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -106,7 +110,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: reportingm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -128,7 +133,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: orchestratorm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -152,7 +158,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: asmm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -164,7 +171,8 @@ spec:
   selector:
     matchLabels:
       app: asmm8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -176,7 +184,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: naabum8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -188,7 +197,8 @@ spec:
   selector:
     matchLabels:
       app: naabum8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -200,7 +210,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: katanam8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -212,7 +223,8 @@ spec:
   selector:
     matchLabels:
       app: katanam8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -224,7 +236,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: num8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -236,7 +249,8 @@ spec:
   selector:
     matchLabels:
       app: num8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -248,7 +262,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: reportingm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -260,7 +275,8 @@ spec:
   selector:
     matchLabels:
       app: reportingm8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -272,7 +288,8 @@ metadata:
   namespace: cptm8-dev
   labels:
     app: orchestratorm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -284,5 +301,6 @@ spec:
   selector:
     matchLabels:
       app: orchestratorm8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
