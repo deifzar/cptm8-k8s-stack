@@ -17,7 +17,8 @@ metadata:
   name: asmm8-logs-pv
   labels:
     app: asmm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -38,7 +39,8 @@ metadata:
   name: naabum8-logs-pv
   labels:
     app: naabum8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -59,7 +61,8 @@ metadata:
   name: katanam8-logs-pv
   labels:
     app: katanam8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -80,7 +83,8 @@ metadata:
   name: num8-logs-pv
   labels:
     app: num8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -101,7 +105,8 @@ metadata:
   name: reportingm8-logs-pv
   labels:
     app: reportingm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -122,7 +127,8 @@ metadata:
   name: orchestratorm8-logs-pv
   labels:
     app: orchestratorm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   capacity:
@@ -145,7 +151,8 @@ metadata:
   name: asmm8-logs-pvc
   labels:
     app: asmm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -157,7 +164,8 @@ spec:
   selector:
     matchLabels:
       app: asmm8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -168,7 +176,8 @@ metadata:
   name: naabum8-logs-pvc
   labels:
     app: naabum8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -180,7 +189,8 @@ spec:
   selector:
     matchLabels:
       app: naabum8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -191,7 +201,8 @@ metadata:
   name: katanam8-logs-pvc
   labels:
     app: katanam8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -203,7 +214,8 @@ spec:
   selector:
     matchLabels:
       app: katanam8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -214,7 +226,8 @@ metadata:
   name: num8-logs-pvc
   labels:
     app: num8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -226,7 +239,8 @@ spec:
   selector:
     matchLabels:
       app: num8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -237,7 +251,8 @@ metadata:
   name: reportingm8-logs-pvc
   labels:
     app: reportingm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -249,7 +264,8 @@ spec:
   selector:
     matchLabels:
       app: reportingm8
-      component: logs
+      tier: logging
+      component: storage
       environment: development
 
 ---
@@ -260,7 +276,8 @@ metadata:
   name: orchestratorm8-logs-pvc
   labels:
     app: orchestratorm8
-    component: logs
+    tier: logging
+    component: storage
     environment: development
 spec:
   accessModes:
@@ -272,5 +289,6 @@ spec:
   selector:
     matchLabels:
       app: orchestratorm8
-      component: logs
+      tier: logging
+      component: storage
       environment: development

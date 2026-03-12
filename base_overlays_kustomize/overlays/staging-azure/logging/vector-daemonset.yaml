@@ -1,0 +1,139 @@
+# Vector DaemonSet for Azure AKS Environment
+# Collects logs from Kubernetes container logs (/var/log/containers)
+# instead of shared PVC volumes.
+#
+# This runs on every node and collects:
+# - Container stdout/stderr logs
+# - Log-streamer sidecar output (which tails application log files)
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vector
+  labels:
+    app: vector
+    tier: logging
+    component: collector
+spec:
+  selector:
+    matchLabels:
+      app: vector
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: vector
+        tier: logging
+        component: collector
+      annotations:
+        # Prometheus scraping
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8686"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: vector-sa
+      # Tolerate all taints to run on every node
+      tolerations:
+      - operator: Exists
+      # Init container to wait for OpenSearch
+      initContainers:
+      - name: wait-for-opensearch
+        image: curlimages/curl:8.4.0
+        env:
+        - name: OPENSEARCH_URL
+          value: "http://opensearch-service:9200"
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for OpenSearch cluster to be ready..."
+          until curl "$OPENSEARCH_URL/_cluster/health?wait_for_status=yellow&timeout=50s" \
+            -o /dev/null -s -w "%{http_code}\n" | grep -q "200"; do
+            echo "OpenSearch not ready, waiting..."
+            sleep 5
+          done
+          echo "OpenSearch cluster is ready!"
+      containers:
+      - name: vector
+        image: timberio/vector:0.34.1-alpine
+        env:
+        - name: VECTOR_CONFIG_PATH
+          value: "/etc/vector/vector.yaml"
+        - name: VECTOR_SELF_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: VECTOR_SELF_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: VECTOR_SELF_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        ports:
+        - containerPort: 8686
+          name: api
+        volumeMounts:
+        - name: vector-config
+          mountPath: /etc/vector
+          readOnly: true
+        - name: vector-data
+          mountPath: /tmp/vector
+        # Mount host paths for Kubernetes logs
+        - name: var-log
+          mountPath: /var/log
+          readOnly: true
+        # For containerd runtime (AKS default)
+        - name: var-log-pods
+          mountPath: /var/log/pods
+          readOnly: true
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8686
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8686
+          initialDelaySeconds: 15
+          periodSeconds: 10
+          timeoutSeconds: 5
+        securityContext:
+          runAsUser: 0  # Required to read host log files
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+            add:
+            - DAC_READ_SEARCH  # Read files without ownership
+      volumes:
+      - name: vector-config
+        configMap:
+          name: vector-config
+          defaultMode: 0644
+      - name: vector-data
+        emptyDir: {}
+      # Host paths for Kubernetes logs (AKS uses containerd)
+      - name: var-log
+        hostPath:
+          path: /var/log
+          type: Directory
+      - name: var-log-pods
+        hostPath:
+          path: /var/log/pods
+          type: DirectoryOrCreate
+      terminationGracePeriodSeconds: 30

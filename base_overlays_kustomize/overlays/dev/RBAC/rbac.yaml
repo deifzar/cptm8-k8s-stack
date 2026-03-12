@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: cptm8-dev
-  name: cptm8-dev-developer
+  name: cptm8-role-developer
 rules:
 - apiGroups: [""]
   resources: ["pods", "services", "configmaps", "secrets"]
@@ -22,7 +22,7 @@ subjects:
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role
-  name: cptm8-dev-developer
+  name: cptm8-role-developer
   apiGroup: rbac.authorization.k8s.io
 ---
 # Service Account for AWS ECR
@@ -35,7 +35,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: ecr-token-refresher
+  name: ecr-token-refresher-role
   namespace: cptm8-dev
 rules:
   - apiGroups: [""]
@@ -50,7 +50,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: ecr-token-refresher
+  name: ecr-token-refresher-role
 subjects:
 - kind: ServiceAccount
   name: ecr-token-refresher
@@ -67,7 +67,7 @@ metadata:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: vector-logs
+  name: vector-logs-role
   namespace: cptm8-dev    # ← Only this namespace
 rules:
 - apiGroups: [""]
@@ -83,8 +83,9 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
-  name: vector-logs
+  name: vector-logs-role
 subjects:
 - kind: ServiceAccount
   name: vector-sa
   namespace: cptm8-dev
+---

@@ -1,0 +1,304 @@
+# Log Streamer Sidecar Patches for Cloud Environments
+# These patches add a sidecar container that streams file-based logs to stdout,
+# allowing Vector DaemonSet to collect them via Kubernetes container logs.
+#
+# The sidecar:
+# - Shares the log emptyDir volume with the main container
+# - Tails all .log files and outputs to stdout
+# - Minimal resource footprint (10Mi memory)
+# - Runs as non-root (uid 10001)
+---
+# asmm8 log streamer sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asmm8
+spec:
+  template:
+    spec:
+      containers:
+      - name: log-streamer
+        image: busybox:1.36
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting log streamer for asmm8..."
+          # Wait for log directory to be ready
+          while [ ! -d /app/log ]; do sleep 1; done
+          # Tail all log files, following new files as they appear
+          # Using a loop to handle log rotation and new files
+          while true; do
+            # Find all .log files and tail them
+            find /app/log -name "*.log" -type f 2>/dev/null | while read f; do
+              tail -F "$f" 2>/dev/null &
+            done
+            # Check for new files every 30 seconds
+            sleep 30
+            # Kill existing tails to refresh
+            pkill -f "tail -F" 2>/dev/null || true
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+          readOnly: true
+        resources:
+          requests:
+            memory: "10Mi"
+            cpu: "5m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      # Replace PVC with emptyDir for cloud (no shared storage needed)
+      volumes:
+      - name: log-volume
+        emptyDir:
+          sizeLimit: 500Mi
+---
+# naabum8 log streamer sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: naabum8
+spec:
+  template:
+    spec:
+      containers:
+      - name: log-streamer
+        image: busybox:1.36
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting log streamer for naabum8..."
+          while [ ! -d /app/log ]; do sleep 1; done
+          while true; do
+            find /app/log -name "*.log" -type f 2>/dev/null | while read f; do
+              tail -F "$f" 2>/dev/null &
+            done
+            sleep 30
+            pkill -f "tail -F" 2>/dev/null || true
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+          readOnly: true
+        resources:
+          requests:
+            memory: "10Mi"
+            cpu: "5m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: log-volume
+        emptyDir:
+          sizeLimit: 500Mi
+---
+# katanam8 log streamer sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: katanam8
+spec:
+  template:
+    spec:
+      containers:
+      - name: log-streamer
+        image: busybox:1.36
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting log streamer for katanam8..."
+          while [ ! -d /app/log ]; do sleep 1; done
+          while true; do
+            find /app/log -name "*.log" -type f 2>/dev/null | while read f; do
+              tail -F "$f" 2>/dev/null &
+            done
+            sleep 30
+            pkill -f "tail -F" 2>/dev/null || true
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+          readOnly: true
+        resources:
+          requests:
+            memory: "10Mi"
+            cpu: "5m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: log-volume
+        emptyDir:
+          sizeLimit: 500Mi
+---
+# num8 log streamer sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: num8
+spec:
+  template:
+    spec:
+      containers:
+      - name: log-streamer
+        image: busybox:1.36
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting log streamer for num8..."
+          while [ ! -d /app/log ]; do sleep 1; done
+          while true; do
+            find /app/log -name "*.log" -type f 2>/dev/null | while read f; do
+              tail -F "$f" 2>/dev/null &
+            done
+            sleep 30
+            pkill -f "tail -F" 2>/dev/null || true
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+          readOnly: true
+        resources:
+          requests:
+            memory: "10Mi"
+            cpu: "5m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: log-volume
+        emptyDir:
+          sizeLimit: 500Mi
+---
+# orchestratorm8 log streamer sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orchestratorm8
+spec:
+  template:
+    spec:
+      containers:
+      - name: log-streamer
+        image: busybox:1.36
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting log streamer for orchestratorm8..."
+          while [ ! -d /app/log ]; do sleep 1; done
+          while true; do
+            find /app/log -name "*.log" -type f 2>/dev/null | while read f; do
+              tail -F "$f" 2>/dev/null &
+            done
+            sleep 30
+            pkill -f "tail -F" 2>/dev/null || true
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+          readOnly: true
+        resources:
+          requests:
+            memory: "10Mi"
+            cpu: "5m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: log-volume
+        emptyDir:
+          sizeLimit: 500Mi
+---
+# reportingm8 log streamer sidecar
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reportingm8
+spec:
+  template:
+    spec:
+      containers:
+      - name: log-streamer
+        image: busybox:1.36
+        command:
+        - /bin/sh
+        - -c
+        - |
+          echo "Starting log streamer for reportingm8..."
+          while [ ! -d /app/log ]; do sleep 1; done
+          while true; do
+            find /app/log -name "*.log" -type f 2>/dev/null | while read f; do
+              tail -F "$f" 2>/dev/null &
+            done
+            sleep 30
+            pkill -f "tail -F" 2>/dev/null || true
+          done
+        volumeMounts:
+        - name: log-volume
+          mountPath: /app/log
+          readOnly: true
+        resources:
+          requests:
+            memory: "10Mi"
+            cpu: "5m"
+          limits:
+            memory: "32Mi"
+            cpu: "50m"
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 10001
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: log-volume
+        emptyDir:
+          sizeLimit: 500Mi

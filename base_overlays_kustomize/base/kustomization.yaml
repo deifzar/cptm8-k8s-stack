@@ -5,9 +5,6 @@ kind: Kustomization
 # These will be customized by overlays (dev, staging, prod)
 
 resources:
-  # RBAC (ServiceAccounts, Roles, RoleBindings)
-  - RBAC/rbac.yaml
-
   # Services (all ClusterIP and headless services)
   - services/services.yaml
 

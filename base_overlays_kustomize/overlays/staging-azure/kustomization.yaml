@@ -6,12 +6,15 @@ namespace: cptm8-staging
 
 # Reference base resources
 resources:
+  - RBAC/rbac.yaml
   - ../../base
   - storage/storageclass-azure-disk.yaml
   - jobs/mongodb-init-job.yaml
   - ingress/ingress-staging.yaml
   - security/network-policies.yaml
   - security/pod-security.yaml
+  # Cloud-native logging: Vector DaemonSet replaces base Vector Deployment
+  - logging/vector-daemonset.yaml
 
 # ConfigMaps (Azure staging-specific)
 configMapGenerator:
@@ -76,6 +79,7 @@ commonAnnotations:
   cloud-provider: azure
 
 # Higher replicas for staging (HA)
+# Note: Vector is excluded - it runs as a DaemonSet in cloud environments
 replicas:
   - name: dashboardm8
     count: 2
@@ -92,8 +96,6 @@ replicas:
   - name: orchestratorm8
     count: 2
   - name: reportingm8
-    count: 1
-  - name: vector
     count: 1
 
 # Image tags for Azure staging (Azure Container Registry)
@@ -127,3 +129,7 @@ images:
 # Strategic merge patches
 patches:
   - path: patches/resources.yaml
+  # Cloud-native logging: Delete base Vector Deployment (replaced by DaemonSet)
+  - path: patches/delete-vector-deployment.yaml
+  # Add log-streamer sidecars to scanner pods (streams file logs to stdout)
+  - path: patches/log-streamer-sidecar.yaml

@@ -6,6 +6,8 @@ namespace: cptm8-dev
 
 # Reference base resources
 resources:
+  # RBAC (ServiceAccounts, Roles, RoleBindings)
+  - RBAC/rbac.yaml
   - ../../base
   - storage/storageclass.yaml
   - storage/pv-shared-logs.yaml

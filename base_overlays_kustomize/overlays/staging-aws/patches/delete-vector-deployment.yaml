@@ -1,0 +1,8 @@
+# Delete the base Vector Deployment
+# We use a DaemonSet instead for cloud environments
+# This patch removes the Deployment from the base so only the DaemonSet runs
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector
+$patch: delete

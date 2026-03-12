@@ -41,7 +41,6 @@ reclaimPolicy: Retain
 volumeBindingMode: WaitForFirstConsumer
 ---
 # Azure Files StorageClass for ReadWriteMany scenarios (shared logs, etc.)
-# Safely to remove since Vector and Opensearch deals with the logging design.
 apiVersion: storage.k8s.io/v1
 kind: StorageClass
 metadata:

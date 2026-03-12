@@ -1,0 +1,31 @@
+# Service Account for Vector
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: vector-sa
+  labels:
+    app: vector
+    tier: logging
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector-role
+rules:
+- apiGroups: [""]
+  resources: ["namespaces", "nodes", "pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector-rolebinding
+subjects:
+- kind: ServiceAccount
+  name: vector-sa
+  namespace: cptm8-staging  # Will be patched by kustomize
+roleRef:
+  kind: ClusterRole
+  name: vector-role
+  apiGroup: rbac.authorization.k8s.io
+---

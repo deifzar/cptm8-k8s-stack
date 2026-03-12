@@ -29,8 +29,8 @@ metadata:
   name: cptm8-dev-logs-shared
   labels:
     environment: development
-    component: logs
-    tier: storage
+    tier: logging
+    component: storage
 provisioner: kubernetes.io/no-provisioner
 parameters:
   type: local
