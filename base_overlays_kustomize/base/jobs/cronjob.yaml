@@ -2,6 +2,8 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: ecr-token-refresher
+  labels:
+    tier: job
 spec:
   schedule: "0 */8 * * *"  # Every 8 hours
   successfulJobsHistoryLimit: 1
@@ -9,12 +11,15 @@ spec:
   jobTemplate:
     spec:
       template:
+        metadata:
+          labels:
+            tier: job
         spec:
           serviceAccountName: ecr-token-refresher
           restartPolicy: OnFailure
           containers:
           - name: refresh-token
-            image: amazon/aws-cli:latest
+            image: amazon/aws-cli:2.34.10
             env:
             - name: NAMESPACE
               valueFrom:

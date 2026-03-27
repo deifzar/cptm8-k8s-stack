@@ -19,6 +19,7 @@ metadata:
     app: mongodb-init
     environment: staging
     tier: data
+    component: chat
 spec:
   # Keep completed job for 1 hour for log inspection
   ttlSecondsAfterFinished: 3600
@@ -28,8 +29,8 @@ spec:
     metadata:
       labels:
         app: mongodb-init
-        environment: staging
         tier: data
+        component: chat
     spec:
       restartPolicy: OnFailure
       containers:
@@ -69,7 +70,7 @@ spec:
               key: mongodb-user-password
         # MongoDB host (use service DNS name)
         - name: MONGO_HOST
-          value: "mongodb-primary-service.cptm8-dev.svc.cluster.local:27017"
+          value: "mongodb-primary-headless.cptm8-staging.svc.cluster.local"
         command:
         - /bin/bash
         - -c
@@ -79,32 +80,46 @@ spec:
           echo '========================================='
           echo 'MongoDB Replica Set Initialization'
           echo '========================================='
-          echo "MongoDB Host: ${MONGO_HOST}"
+          echo "MongoDB Host 1: mongodb-primary-0.${MONGO_HOST}"
+          echo "MongoDB Host 2: mongodb-primary-1.${MONGO_HOST}"
+          echo "MongoDB Host 3: mongodb-primary-2.${MONGO_HOST}"
           echo "Replica Set: rs0"
           echo "Database: ${MONGO_INITDB_DATABASE}"
           echo '========================================='
 
           echo ''
-          echo '🔍 Step 1: Waiting for MongoDB to be ready...'
-          sleep 30
-
-          # Test connection WITHOUT authentication (MongoDB starts without auth by default)
-          if mongosh --host ${MONGO_HOST} --eval "db.adminCommand('ping')" --quiet 2>/dev/null; then
-            echo '✅ MongoDB is reachable (no auth)'
-          else
-            echo '❌ MongoDB is not reachable. Exiting...'
-            exit 1
-          fi
+          echo '🔍 Step 1: Waiting for MongoDBs to be ready...'
+          # Test connections WITHOUT authentication (MongoDB starts without auth by default)
+          until mongosh --host mongodb-primary-0.${MONGO_HOST} --eval "db.adminCommand('ping')" --quiet 2>/dev/null; do
+          echo '❌ MongoDB #0 is not reachable. Waiting for 2 secs...'
+          sleep 2
+          done
+          until mongosh --host mongodb-primary-1.${MONGO_HOST} --eval "db.adminCommand('ping')" --quiet 2>/dev/null; do
+          echo '❌ MongoDB #1 is not reachable. Waiting for 2 secs...'
+          sleep 2
+          done
+          until mongosh --host mongodb-primary-2.${MONGO_HOST} --eval "db.adminCommand('ping')" --quiet 2>/dev/null; do
+          echo '❌ MongoDB #2 is not reachable. Waiting for 2 secs...'
+          sleep 2
+          done
+          echo '✅ All MongoDBs are reachable (no auth)'
 
           echo ''
           echo '🔧 Step 2: Initializing replica set...'
           mongosh --host ${MONGO_HOST} --eval '
-            rs.initiate({
-              _id: "rs0",
-              members: [
-                {_id: 0, host: "mongodb-primary-service.cptm8-dev.svc.cluster.local:27017", priority: 1}
-              ]
-            })
+            const host = process.env.MONGO_HOST;
+            try {
+              rs.status();
+            } catch (e) {
+              rs.initiate({
+                _id: "rs0",
+                members: [
+                  {_id: 0, host: "mongodb-primary-0" + host, priority: 3},
+                  {_id: 1, host: "mongodb-primary-1" + host, priority: 2},
+                  {_id: 2, host: "mongodb-primary-2" + host, priority: 1}
+                ]
+              })
+            }
           ' && echo '✅ Replica set initialized' || echo '⚠️  Replica set may already be initialized (this is OK)'
 
           echo ''
