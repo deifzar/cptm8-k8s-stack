@@ -1,6 +1,7 @@
 # CPTM8 Kubernetes Infrastructure
 
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-1.28+-326CE5?logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![Helm](https://img.shields.io/badge/Helm-3.12+-0F1689?logo=helm&logoColor=white)](https://helm.sh/)
 [![Kustomize](https://img.shields.io/badge/Kustomize-5.0+-00ADD8?logo=kubernetes&logoColor=white)](https://kustomize.io/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20development-yellow)](https://github.com/yourusername/cptm8-k8s-stack)
@@ -10,7 +11,7 @@
 
 ## Overview
 
-CPTM8 is a comprehensive security scanning platform deployed on Kubernetes, providing automated reconnaissance, vulnerability scanning, and continuous penetration testing capabilities. The infrastructure supports three environments (dev/staging/prod) with declarative configuration management using Kustomize.
+CPTM8 is a comprehensive security scanning platform deployed on Kubernetes, providing automated reconnaissance, vulnerability scanning, and continuous penetration testing capabilities. The infrastructure supports three environments (dev/staging/prod) with two deployment options: **Helm** (recommended for cloud deployments) and **Kustomize** (for GitOps workflows).
 
 ### Key Features
 
@@ -53,14 +54,17 @@ CPTM8 is a comprehensive security scanning platform deployed on Kubernetes, prov
 - Docker 24.0+ (4 CPU cores, 8GB RAM minimum)
 - kubectl 1.28+
 - Kind 0.20+ (for local development)
-- Kustomize 5.0+ (bundled with kubectl)
+- Helm 3.12+ (for Helm deployments)
+- Kustomize 5.0+ (bundled with kubectl, for Kustomize deployments)
 
 ### 5-Minute Local Deployment
+
+#### Option 1: Helm (Recommended)
 
 ```bash
 # 1. Clone repository
 git clone <repository-url>
-cd Kubernetes
+cd cptm8-k8s-stack
 
 # 2. Create Kind cluster with port mappings
 cat <<EOF | kind create cluster --name cptm8-dev --config=-
@@ -73,10 +77,12 @@ nodes:
     hostPort: 3000  # DashboardM8
   - containerPort: 30001
     hostPort: 4000  # SocketM8
+  - containerPort: 30672
+    hostPort: 15672 # RabbitMQ Management
 EOF
 
-# 3. Deploy full stack
-kubectl apply -k overlays/dev/
+# 3. Deploy with Helm
+helm install cptm8 helm -n cptm8-dev --create-namespace
 
 # 4. Wait for all pods to be ready (2-5 minutes)
 kubectl wait --for=condition=ready pod --all --timeout=300s -n cptm8-dev
@@ -84,6 +90,24 @@ kubectl wait --for=condition=ready pod --all --timeout=300s -n cptm8-dev
 # 5. Access services
 echo "DashboardM8: http://localhost:3000"
 echo "SocketM8: ws://localhost:4000"
+echo "RabbitMQ: http://localhost:15672"
+```
+
+#### Option 2: Kustomize
+
+```bash
+# 1. Clone repository
+git clone <repository-url>
+cd cptm8-k8s-stack
+
+# 2. Create Kind cluster (same as above)
+# ...
+
+# 3. Deploy with Kustomize
+kubectl apply -k base_overlays_kustomize/overlays/dev/
+
+# 4. Wait for all pods to be ready
+kubectl wait --for=condition=ready pod --all --timeout=300s -n cptm8-dev
 ```
 
 ### Verify Deployment
@@ -94,6 +118,10 @@ kubectl get pods -n cptm8-dev
 
 # Check services
 kubectl get svc -n cptm8-dev
+
+# Helm-specific verification
+helm status cptm8 -n cptm8-dev
+helm get values cptm8 -n cptm8-dev
 
 # Run validation script
 ./scripts/validate-deployment.sh
@@ -148,45 +176,98 @@ The infrastructure supports three isolated environments:
 | **Staging** | `cptm8-staging` | 2-3 | Moderate (8 CPU, 16Gi RAM) | Pre-production validation |
 | **Production** | `cptm8-prod` | 3+ (HPA) | Full (20+ CPU, 40Gi+ RAM) | Live production workloads |
 
+### Deployment Methods
+
+| Feature | Helm | Kustomize |
+|---------|------|-----------|
+| **Best For** | Cloud deployments, CI/CD | GitOps, ArgoCD |
+| **Values Management** | Single values.yaml per environment | Overlays with patches |
+| **Secrets** | SOPS encrypted values files | SOPS encrypted manifests |
+| **Rollback** | Built-in (`helm rollback`) | Manual or ArgoCD |
+| **Release Tracking** | Built-in release history | Git history |
+| **Cloud Support** | AWS ALB, Azure NGINX + cert-manager | Manual ingress config |
+| **Learning Curve** | Moderate | Low |
+
 ### Deployment Commands
+
+#### Helm Deployment
+
+```bash
+# Development (local Kind cluster)
+helm install cptm8 helm -n cptm8-dev --create-namespace
+
+# Staging AWS (EKS cluster)
+helm install cptm8 helm -n cptm8-staging \
+  -f helm/values-staging-aws.yaml \
+  -f <(sops -d values-secrets-staging-aws.yaml)
+
+# Staging Azure (AKS cluster)
+helm install cptm8 helm -n cptm8-staging \
+  -f helm/values-staging-azure.yaml \
+  -f <(sops -d values-secrets-staging-azure.yaml)
+
+# Upgrade existing deployment
+helm upgrade cptm8 helm -n cptm8-dev --wait
+
+# Rollback on failure
+helm rollback cptm8 -n cptm8-dev
+```
+
+#### Kustomize Deployment
 
 ```bash
 # Deploy to development (Kind cluster)
-kubectl apply -k overlays/dev/
+kubectl apply -k base_overlays_kustomize/overlays/dev/
 
-# Deploy to staging (cloud cluster)
-kubectl apply -k overlays/staging/
+# Deploy to staging AWS
+kubectl apply -k base_overlays_kustomize/overlays/staging-aws/
 
-# Deploy to production (with manual approval)
-kubectl apply -k overlays/prod/
+# Deploy to staging Azure
+kubectl apply -k base_overlays_kustomize/overlays/staging-azure/
 ```
 
-### Kustomize Structure
+### Project Structure
 
 ```
 .
-├── bases/                     # Base Kubernetes manifests
-│   ├── asmm8/                # ASMM8 service (Deployment, Service, ConfigMap)
-│   ├── naabum8/              # NAABUM8 service
-│   ├── postgres/             # PostgreSQL StatefulSet
-│   ├── mongodb/              # MongoDB replica set
-│   ├── rabbitmq/             # RabbitMQ cluster
-│   ├── opensearch/           # OpenSearch cluster
-│   ├── ingress/              # NGINX Ingress Controller
-│   └── vector/               # Vector log collector
+├── helm/                          # Helm Chart (recommended for cloud)
+│   ├── Chart.yaml                # Chart metadata
+│   ├── values.yaml               # Default values (dev)
+│   ├── values-staging-aws.yaml   # AWS EKS staging values
+│   ├── values-staging-azure.yaml # Azure AKS staging values
+│   └── templates/                # Kubernetes manifests templates
+│       ├── _helpers.tpl          # Named template helpers
+│       ├── _go-scanner.tpl       # Scanner deployment template
+│       ├── _frontend.tpl         # Frontend deployment template
+│       ├── configmaps/           # ConfigMap templates
+│       ├── secrets/              # Secret templates
+│       ├── storage/              # StorageClass, PVC templates
+│       ├── databases/            # PostgreSQL, MongoDB, RabbitMQ, OpenSearch
+│       ├── deployments/          # Scanner & Frontend deployments
+│       ├── services/             # Service definitions
+│       ├── ingress/              # Ingress (NGINX/ALB/AGIC)
+│       ├── security/             # Network Policies
+│       ├── rbac/                 # ServiceAccounts, Roles
+│       ├── jobs/                 # CronJobs, Init Jobs
+│       └── vector/               # Log aggregation
 │
-├── overlays/                  # Environment-specific configurations
-│   ├── dev/                  # Development overlay (1 replica, minimal resources)
-│   ├── staging/              # Staging overlay (2-3 replicas, moderate resources)
-│   └── prod/                 # Production overlay (3+ replicas, HPA, full resources)
+├── base_overlays_kustomize/       # Kustomize (base + overlays model)
+│   ├── base/                     # Shared base manifests
+│   └── overlays/                 # Environment-specific overlays
+│       ├── dev/                  # Local Kind cluster
+│       ├── staging-aws/          # AWS EKS staging
+│       └── staging-azure/        # Azure AKS staging
 │
-└── docs/                     # Comprehensive documentation
-    ├── ARCHITECTURE.md       # System architecture
-    ├── CODE_REVIEW.md        # Manifest review and issues
-    ├── DEVELOPMENT.md        # Development guide
-    ├── PERFORMANCE.md        # Performance optimization
-    ├── SECURITY.md           # Security hardening
-    └── TODO.md               # Roadmap and action items
+├── flat_kustomize/                # Kustomize (flat file structure)
+│   └── ...                       # Single-directory deployment
+│
+└── docs/                          # Documentation
+    ├── deployment/
+    │   ├── helm/                 # Helm deployment guides
+    │   └── ...                   # Other deployment docs
+    ├── ARCHITECTURE.md
+    ├── SECURITY.md
+    └── ...
 ```
 
 ## Configuration
@@ -542,6 +623,15 @@ For more troubleshooting guidance, see [DEVELOPMENT.md](docs/DEVELOPMENT.md#trou
 
 ## Documentation
 
+### Deployment Guides
+
+- **[Helm Deployment](docs/deployment/helm/README.md)** - Helm chart deployment documentation
+  - [Local Deployment Guide](docs/deployment/helm/local-deployment-guide.md) - Deploy to local Kind cluster
+  - [Cloud Deployment Guide](docs/deployment/helm/cloud-deployment-guide.md) - Deploy to AWS EKS or Azure AKS
+  - [Helm Quickstart](docs/deployment/helm/helm-quickstart.md) - Quick command reference
+  - [Values Reference](docs/deployment/helm/values-reference.md) - Complete values.yaml documentation
+- **[Kustomize Deployment](docs/deployment/)** - Kustomize-based deployment guides
+
 ### Core Documentation
 
 - **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - Complete system architecture, component descriptions, design patterns
@@ -554,13 +644,13 @@ For more troubleshooting guidance, see [DEVELOPMENT.md](docs/DEVELOPMENT.md#trou
 ### Additional Resources
 
 - **[CLAUDE.md](CLAUDE.md)** - Guide for Claude Code instances working with this repository
-- **[DEPLOYMENT-GUIDE.md](DEPLOYMENT-GUIDE.md)** - Step-by-step deployment walkthrough
 - **[docs/staging/SECURITY_REVIEW.md](docs/staging/SECURITY_REVIEW.md)** - Comprehensive security audit (20 issues)
 
 ## Roadmap
 
 ### Phase 1: Critical Security (Week 1)
 - [x] Create comprehensive documentation
+- [x] Implement Helm chart for cloud deployments
 - [ ] Remove hardcoded credentials
 - [ ] Implement container security contexts
 - [ ] Deploy zero-trust network policies
@@ -593,9 +683,13 @@ See [TODO.md](docs/TODO.md) for complete roadmap with deadlines and ownership.
 ### Development Workflow
 
 1. Create feature branch: `git checkout -b feature/new-feature`
-2. Make changes to manifests
-3. Test locally: `kubectl apply -k overlays/dev/`
-4. Validate: `./scripts/validate-deployment.sh`
+2. Make changes to Helm chart or Kustomize manifests
+3. Test locally:
+   - Helm: `helm upgrade --install cptm8 helm -n cptm8-dev`
+   - Kustomize: `kubectl apply -k base_overlays_kustomize/overlays/dev/`
+4. Validate:
+   - Helm: `helm lint helm && helm template cptm8 helm | kubectl apply --dry-run=server -f -`
+   - Kustomize: `./scripts/validate-deployment.sh`
 5. Commit with descriptive message
 6. Create pull request
 
@@ -642,8 +736,8 @@ Closes #123
 
 ### Contact
 
-- **Platform Team:** platform-team@securetivity.com
-- **Security Team:** security-team@securetivity.com
+- **Platform Team:** info@cptm8.net
+- **Security Team:** security-team@cptm8.net
 - **On-Call:** Use PagerDuty for production issues
 
 ## License
@@ -652,6 +746,6 @@ Proprietary - Copyright © 2025 Securetivity. All rights reserved.
 
 ---
 
-**Last Updated:** November 19, 2025
-**Version:** 1.0.0
+**Last Updated:** March 27, 2026
+**Version:** 1.1.0
 **Maintainer:** Platform Team
