@@ -2,7 +2,7 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: cptm8-dev
-  name: cptm8-role-developer
+  name: cptm8-developer-role
 rules:
 - apiGroups: [""]
   resources: ["pods", "services", "configmaps", "secrets"]
@@ -18,11 +18,11 @@ metadata:
   namespace: cptm8-dev
 subjects:
 - kind: Group
-  name: cptm8-developers      # All members of this group get permissions
+  name: cptm8-developers-group      # All members of this group get permissions
   apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role
-  name: cptm8-role-developer
+  name: cptm8-developer-role
   apiGroup: rbac.authorization.k8s.io
 ---
 # Service Account for AWS ECR
