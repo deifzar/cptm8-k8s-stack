@@ -8,6 +8,7 @@ metadata:
     tier: data
     component: chat
 spec:
+  replicas: 3
   serviceName: mongodb-primary-headless
   selector:
     matchLabels:
