@@ -9,9 +9,13 @@
 /secrets/*
 !/secrets/secrets-dev.example.yaml
 !/secrets/.gitkeep
-helm/values-secrets-dev.yaml
-helm/values-secrets-staging-aws.yaml
-helm/values-secrets-staging-azure.yaml
+# Helm secrets (all locations, all environments)
+helm/values-secrets*.yaml
+!helm/values-secrets*.yaml.example
+helm/*/values-secrets*.yaml
+!helm/*/values-secrets*.yaml.example
+values-secrets*.yaml
+!values-secrets*.yaml.example
 
 #keys
 key.txt

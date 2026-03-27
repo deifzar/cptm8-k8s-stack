@@ -298,9 +298,9 @@ sops -e -i values-secrets-staging-aws.yaml
 kubectl create namespace cptm8-staging
 
 # Install with Helm
-helm install cptm8 helm \
+helm install cptm8 helm/cptm8 \
   --namespace cptm8-staging \
-  -f helm/values-staging-aws.yaml \
+  -f helm/cptm8/values-staging-aws.yaml \
   -f <(sops -d values-secrets-staging-aws.yaml) \
   --wait \
   --timeout 10m
@@ -510,9 +510,9 @@ helm install cert-manager jetstack/cert-manager \
 kubectl create namespace cptm8-staging
 
 # Deploy
-helm install cptm8 helm \
+helm install cptm8 helm/cptm8 \
   --namespace cptm8-staging \
-  -f helm/values-staging-azure.yaml \
+  -f helm/cptm8/values-staging-azure.yaml \
   -f <(sops -d values-secrets-staging-azure.yaml) \
   --wait \
   --timeout 10m
@@ -593,7 +593,7 @@ For production, use managed database services:
 sops -e values-secrets.yaml > values-secrets.enc.yaml
 
 # Decrypt and use in Helm
-helm upgrade cptm8 helm \
+helm upgrade cptm8 helm/cptm8 \
   -f <(sops -d values-secrets.enc.yaml)
 ```
 

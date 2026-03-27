@@ -82,7 +82,7 @@ nodes:
 EOF
 
 # 3. Deploy with Helm
-helm install cptm8 helm -n cptm8-dev --create-namespace
+helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace
 
 # 4. Wait for all pods to be ready (2-5 minutes)
 kubectl wait --for=condition=ready pod --all --timeout=300s -n cptm8-dev
@@ -194,20 +194,20 @@ The infrastructure supports three isolated environments:
 
 ```bash
 # Development (local Kind cluster)
-helm install cptm8 helm -n cptm8-dev --create-namespace
+helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace
 
 # Staging AWS (EKS cluster)
-helm install cptm8 helm -n cptm8-staging \
-  -f helm/values-staging-aws.yaml \
+helm install cptm8 helm/cptm8 -n cptm8-staging \
+  -f helm/cptm8/values-staging-aws.yaml \
   -f <(sops -d values-secrets-staging-aws.yaml)
 
 # Staging Azure (AKS cluster)
-helm install cptm8 helm -n cptm8-staging \
-  -f helm/values-staging-azure.yaml \
+helm install cptm8 helm/cptm8 -n cptm8-staging \
+  -f helm/cptm8/values-staging-azure.yaml \
   -f <(sops -d values-secrets-staging-azure.yaml)
 
 # Upgrade existing deployment
-helm upgrade cptm8 helm -n cptm8-dev --wait
+helm upgrade cptm8 helm/cptm8 -n cptm8-dev --wait
 
 # Rollback on failure
 helm rollback cptm8 -n cptm8-dev
@@ -685,10 +685,10 @@ See [TODO.md](docs/TODO.md) for complete roadmap with deadlines and ownership.
 1. Create feature branch: `git checkout -b feature/new-feature`
 2. Make changes to Helm chart or Kustomize manifests
 3. Test locally:
-   - Helm: `helm upgrade --install cptm8 helm -n cptm8-dev`
+   - Helm: `helm upgrade --install cptm8 helm/cptm8 -n cptm8-dev`
    - Kustomize: `kubectl apply -k base_overlays_kustomize/overlays/dev/`
 4. Validate:
-   - Helm: `helm lint helm && helm template cptm8 helm | kubectl apply --dry-run=server -f -`
+   - Helm: `helm lint helm/cptm8 && helm template cptm8 helm/cptm8 | kubectl apply --dry-run=server -f -`
    - Kustomize: `./scripts/validate-deployment.sh`
 5. Commit with descriptive message
 6. Create pull request

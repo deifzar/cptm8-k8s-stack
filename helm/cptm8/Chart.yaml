@@ -11,7 +11,7 @@ keywords:
   - vulnerability-scanning
 maintainers:
   - name: CPTM8 Team
-    email: hello@cptm8.net
+    email: info@cptm8.net
 dependencies:
   - name: postgresql
     version: "0.1.0"

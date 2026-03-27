@@ -8,20 +8,20 @@ Quick command reference for common Helm operations.
 
 ```bash
 # Development (local Kind) - NodePort mode (default)
-helm install cptm8 helm -n cptm8-dev --create-namespace
+helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace
 
 # Development (local Kind) - Ingress mode
-helm install cptm8 helm -n cptm8-dev --create-namespace \
-  -f helm/values-dev-ingress.yaml
+helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace \
+  -f helm/cptm8/values-dev-ingress.yaml
 
 # Staging AWS
-helm install cptm8 helm -n cptm8-staging \
-  -f helm/values-staging-aws.yaml \
+helm install cptm8 helm/cptm8 -n cptm8-staging \
+  -f helm/cptm8/values-staging-aws.yaml \
   -f <(sops -d values-secrets.yaml)
 
 # Staging Azure
-helm install cptm8 helm -n cptm8-staging \
-  -f helm/values-staging-azure.yaml \
+helm install cptm8 helm/cptm8 -n cptm8-staging \
+  -f helm/cptm8/values-staging-azure.yaml \
   -f <(sops -d values-secrets.yaml)
 ```
 
@@ -31,20 +31,20 @@ helm install cptm8 helm -n cptm8-staging \
 
 ```bash
 # Basic upgrade
-helm upgrade cptm8 helm -n cptm8-dev
+helm upgrade cptm8 helm/cptm8 -n cptm8-dev
 
 # Upgrade with wait
-helm upgrade cptm8 helm -n cptm8-dev --wait --timeout 5m
+helm upgrade cptm8 helm/cptm8 -n cptm8-dev --wait --timeout 5m
 
 # Atomic upgrade (auto-rollback on failure)
-helm upgrade cptm8 helm -n cptm8-dev --atomic --timeout 5m
+helm upgrade cptm8 helm/cptm8 -n cptm8-dev --atomic --timeout 5m
 
 # Upgrade with value override
-helm upgrade cptm8 helm -n cptm8-dev \
+helm upgrade cptm8 helm/cptm8 -n cptm8-dev \
   --set scanners.asmm8.replicaCount=2
 
 # Install or upgrade (idempotent)
-helm upgrade --install cptm8 helm -n cptm8-dev --create-namespace
+helm upgrade --install cptm8 helm/cptm8 -n cptm8-dev --create-namespace
 ```
 
 ---
@@ -88,18 +88,18 @@ helm get manifest cptm8 -n cptm8-dev
 
 ```bash
 # Render all templates
-helm template cptm8 helm -n cptm8-dev
+helm template cptm8 helm/cptm8 -n cptm8-dev
 
 # Render specific template
-helm template cptm8 helm -n cptm8-dev \
+helm template cptm8 helm/cptm8 -n cptm8-dev \
   --show-only templates/deployments/scanners.yaml
 
 # Render with custom values
-helm template cptm8 helm -n cptm8-dev \
+helm template cptm8 helm/cptm8 -n cptm8-dev \
   -f values-custom.yaml
 
 # Dry-run with debug
-helm install cptm8 helm -n cptm8-dev --dry-run --debug
+helm install cptm8 helm/cptm8 -n cptm8-dev --dry-run --debug
 ```
 
 ---
@@ -108,11 +108,11 @@ helm install cptm8 helm -n cptm8-dev --dry-run --debug
 
 ```bash
 # Lint chart
-helm lint helm
-helm lint helm --strict
+helm lint helm/cptm8
+helm lint helm/cptm8 --strict
 
 # Validate YAML
-helm template cptm8 helm | kubectl apply --dry-run=server -f -
+helm template cptm8 helm/cptm8 | kubectl apply --dry-run=server -f -
 
 # Check dependencies
 helm dependency list helm
@@ -168,7 +168,7 @@ helm uninstall cptm8 -n cptm8-dev --keep-history
 
 ```bash
 # Quick deploy
-helm upgrade --install cptm8 helm -n cptm8-dev --create-namespace
+helm upgrade --install cptm8 helm/cptm8 -n cptm8-dev --create-namespace
 
 # Port-forward for access
 kubectl port-forward svc/dashboardm8-service 3000:3000 -n cptm8-dev
@@ -184,7 +184,7 @@ kubectl rollout restart deploy/dashboardm8 -n cptm8-dev
 
 ```bash
 # Deploy with secrets
-helm upgrade --install cptm8 helm \
+helm upgrade --install cptm8 helm/cptm8 \
   -n cptm8-staging \
   -f values-staging.yaml \
   -f <(sops -d values-secrets.yaml) \
