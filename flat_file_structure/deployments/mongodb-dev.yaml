@@ -10,8 +10,8 @@ metadata:
     tier: data
     component: chat
 spec:
+  replicas: 3
   serviceName: mongodb-primary-headless
-  replicas: 1  # Start with single node for dev simplicity
   selector:
     matchLabels:
       app: mongodb-primary
