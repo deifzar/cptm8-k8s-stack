@@ -1,0 +1,120 @@
+# CPTM8 Helm Chart - Development with Ingress
+# Use this instead of NodePort for local Kind cluster with NGINX Ingress Controller
+#
+# Prerequisites:
+# 1. Create Kind cluster with Ingress port mappings:
+#    cat <<EOF | kind create cluster --name cptm8-dev --config=-
+#    kind: Cluster
+#    apiVersion: kind.x-k8s.io/v1alpha4
+#    nodes:
+#    - role: control-plane
+#      extraPortMappings:
+#      - containerPort: 80
+#        hostPort: 80
+#        protocol: TCP
+#      - containerPort: 443
+#        hostPort: 443
+#        protocol: TCP
+#      kubeadmConfigPatches:
+#      - |
+#        kind: InitConfiguration
+#        nodeRegistration:
+#          kubeletExtraArgs:
+#            node-labels: "ingress-ready=true"
+#    EOF
+#
+# 2. Install NGINX Ingress Controller for Kind:
+#    kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+#    kubectl wait --namespace ingress-nginx \
+#      --for=condition=ready pod \
+#      --selector=app.kubernetes.io/component=controller \
+#      --timeout=90s
+#
+# 3. Add entries to /etc/hosts:
+#    echo "127.0.0.1 dashboard.cptm8.local socket.cptm8.local rabbitmq.cptm8.local" | sudo tee -a /etc/hosts
+#
+# 4. Deploy with this values file:
+#    helm install cptm8 helm -n cptm8-dev --create-namespace -f helm/values-dev-ingress.yaml
+#
+# 5. Access services:
+#    - Dashboard: http://dashboard.cptm8.local
+#    - Socket.io: http://socket.cptm8.local
+#    - RabbitMQ:  http://rabbitmq.cptm8.local
+
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
+global:
+  environment: dev
+
+# =============================================================================
+# NODEPORT - DISABLED
+# =============================================================================
+nodePort:
+  enabled: false
+
+# =============================================================================
+# INGRESS - ENABLED
+# =============================================================================
+ingress:
+  enabled: true
+  className: nginx
+
+  # Disable TLS for local development (use HTTP only)
+  # Set to true and configure cert-manager for HTTPS
+  certManager:
+    enabled: false
+
+  # Rate limiting (optional for dev)
+  rateLimit:
+    enabled: false
+
+  # Host configuration for local development
+  hosts:
+    # Dashboard (Next.js frontend)
+    - host: dashboard.cptm8.local
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: dashboardm8-service
+          servicePort: 3000
+
+    # Socket.io (WebSocket server)
+    - host: socket.cptm8.local
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: socketm8-service
+          servicePort: 4000
+
+    # RabbitMQ Management UI
+    - host: rabbitmq.cptm8.local
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: rabbitmq-service
+          servicePort: 15672
+
+  # TLS configuration (disabled for local dev)
+  # Uncomment for HTTPS with self-signed certs
+  # tls:
+  #   - hosts:
+  #       - dashboard.cptm8.local
+  #       - socket.cptm8.local
+  #       - rabbitmq.cptm8.local
+  #     secretName: cptm8-dev-tls
+
+  # Additional annotations for local development
+  annotations:
+    # Disable SSL redirect for HTTP-only local dev
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "false"
+
+# =============================================================================
+# OPTIONAL: OPENSEARCH DASHBOARDS INGRESS
+# =============================================================================
+# Uncomment to expose OpenSearch Dashboards via Ingress
+# opensearchDashboards:
+#   ingress:
+#     enabled: true
+#     host: opensearch.cptm8.local
