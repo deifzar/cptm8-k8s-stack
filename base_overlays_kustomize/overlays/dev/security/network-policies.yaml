@@ -10,6 +10,43 @@ spec:
   - Egress
   - Ingress
 ---
+# DNS egress policy for all pods
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-dns-egress-policy
+  namespace: cptm8-dev
+spec:
+  podSelector: {}  # Apply to all pods in namespace
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cptm8-dev-job-policy
+  namespace: cptm8-dev
+spec:
+  podSelector:
+    matchLabels:
+      tier: job
+  policyTypes:
+  - Egress
+  egress:
+  # Allow HTTPS to anywhere (internet)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -93,12 +130,28 @@ spec:
       tier: data
   policyTypes:
   - Ingress
+  - Egress
   ingress:
   # Allow from application (frontend, scanners, reporting)
   - from:
     - podSelector:
         matchLabels:
           tier: application
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: data
+  egress:
+  # Allow intra-tier communication (for replica set and init job)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    ports:
+    - protocol: TCP
+      port: 27017   # MongoDB
+    - protocol: TCP
+      port: 5432    # PostgreSQL
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -261,25 +314,6 @@ spec:
       port: 9200    # OpenSearch HTTP API
     - protocol: TCP
       port: 9300    # OpenSearch cluster transport
----
-# DNS egress policy for all pods
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: cptm8-dev-dns-egress-policy
-  namespace: cptm8-dev
-spec:
-  podSelector: {}  # Apply to all pods in namespace
-  policyTypes:
-  - Egress
-  egress:
-  # Allow DNS resolution
-  - to: []
-    ports:
-    - protocol: UDP
-      port: 53
-    - protocol: TCP
-      port: 53
 ---
 # SMTP egress policy for services that send email notifications
 apiVersion: networking.k8s.io/v1
