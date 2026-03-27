@@ -1,0 +1,136 @@
+{{- if .Values.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "mongodb.fullname" . }}
+  namespace: {{ include "mongodb.namespace" . }}
+  labels:
+    {{- include "mongodb.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "mongodb.fullname" . }}-headless
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "mongodb.selectorLabels" . | nindent 6 }}
+      environment: {{ include "mongodb.environment" . }}
+  template:
+    metadata:
+      labels:
+        {{- include "mongodb.selectorLabels" . | nindent 8 }}
+        environment: {{ include "mongodb.environment" . }}
+        tier: data
+        mongodb-role: primary
+    spec:
+      {{- if .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: mongodb
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- if .Values.replicaSet.enabled }}
+        command:
+        - mongod
+        - --replSet
+        - {{ .Values.replicaSet.name }}
+        - --bind_ip_all
+        - --port
+        - "{{ .Values.service.port }}"
+        {{- end }}
+        env:
+        - name: MONGO_INITDB_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Values.env.configMapName }}
+              key: MONGO_INITDB_DATABASE
+        - name: MONGO_INITDB_COLLECTION
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Values.env.configMapName }}
+              key: MONGO_INITDB_COLLECTION
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Values.env.configMapName }}
+              key: MONGO_INITDB_ROOT_USERNAME
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.env.secretName }}
+              key: mongodb-root-password
+        - name: MONGO_NON_ROOT_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: {{ .Values.env.configMapName }}
+              key: MONGO_NON_ROOT_USERNAME
+        - name: MONGO_NON_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ .Values.env.secretName }}
+              key: mongodb-user-password
+        ports:
+        - name: mongodb
+          containerPort: {{ .Values.service.port }}
+          protocol: TCP
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+        - name: mongodb-config
+          mountPath: /data/configdb
+        {{- if .Values.resources }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+        {{- end }}
+        {{- if .Values.livenessProbe.enabled }}
+        livenessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.readinessProbe.enabled }}
+        readinessProbe:
+          exec:
+            command:
+            - mongosh
+            - --eval
+            - "db.adminCommand('ping')"
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.securityContext }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
+  {{- if .Values.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-data
+    spec:
+      accessModes:
+        {{- toYaml .Values.persistence.accessModes | nindent 8 }}
+      storageClassName: {{ include "mongodb.storageClass" . }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.dataSize }}
+  - metadata:
+      name: mongodb-config
+    spec:
+      accessModes:
+        {{- toYaml .Values.persistence.accessModes | nindent 8 }}
+      storageClassName: {{ include "mongodb.storageClassDelete" . }}
+      resources:
+        requests:
+          storage: {{ .Values.persistence.configSize }}
+  {{- end }}
+{{- end }}

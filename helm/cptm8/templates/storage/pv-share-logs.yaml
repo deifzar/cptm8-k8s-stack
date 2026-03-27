@@ -1,0 +1,109 @@
+{{/*
+PersistentVolume and PersistentVolumeClaim for scanner and reporting services
+Each Go scanner/reporting service gets a PV/PVC for logs
+*/}}
+{{- $ctx := . -}}
+{{- $namespace := include "cptm8.namespace" . -}}
+{{- $storageClass := printf "%s-logs-shared" $namespace -}}
+
+{{/*
+Process scanners from Values.scanners
+*/}}
+{{- range $name, $scanner := .Values.scanners }}
+{{- if $scanner.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $name }}-logs-pv
+  labels:
+    app: {{ $name }}
+    tier: logging
+    component: storage
+    {{- include "cptm8.labels" $ctx | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ ($scanner.persistence).logsSize | default "5Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $storageClass }}
+  hostPath:
+    path: /var/{{ $namespace }}-logs/{{ $name }}
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-logs-pvc
+  namespace: {{ $namespace }}
+  labels:
+    app: {{ $name }}
+    tier: logging
+    component: storage
+    {{- include "cptm8.labels" $ctx | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ $storageClass }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+      tier: logging
+      component: storage
+  resources:
+    requests:
+      storage: {{ ($scanner.persistence).logsSize | default "5Gi" }}
+{{- end }}
+{{- end }}
+
+{{/*
+Process reporting services from Values.reporting
+*/}}
+{{- range $name, $reporting := .Values.reporting }}
+{{- if $reporting.enabled }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ $name }}-logs-pv
+  labels:
+    app: {{ $name }}
+    tier: logging
+    component: storage
+    {{- include "cptm8.labels" $ctx | nindent 4 }}
+spec:
+  capacity:
+    storage: {{ ($reporting.persistence).logsSize | default "5Gi" }}
+  accessModes:
+    - ReadWriteMany
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ $storageClass }}
+  hostPath:
+    path: /var/{{ $namespace }}-logs/{{ $name }}
+    type: DirectoryOrCreate
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ $name }}-logs-pvc
+  namespace: {{ $namespace }}
+  labels:
+    app: {{ $name }}
+    tier: logging
+    component: storage
+    {{- include "cptm8.labels" $ctx | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: {{ $storageClass }}
+  selector:
+    matchLabels:
+      app: {{ $name }}
+      tier: logging
+      component: storage
+  resources:
+    requests:
+      storage: {{ ($reporting.persistence).logsSize | default "5Gi" }}
+{{- end }}
+{{- end }}

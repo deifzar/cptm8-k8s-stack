@@ -1,0 +1,289 @@
+{{/*
+=============================================================================
+VECTOR CONFIGURATION
+=============================================================================
+Log collection and forwarding configuration for Vector.
+
+Modes:
+  - dev: File-based log collection from shared PVCs
+  - staging/prod: kubernetes_logs source for container log collection
+*/}}
+{{- if .Values.vector.enabled }}
+{{- $namespace := include "cptm8.namespace" . -}}
+{{- $environment := .Values.global.environment -}}
+{{- $isDevMode := eq $environment "dev" -}}
+{{- $opensearchEndpoint := printf "http://opensearch-service.%s.svc.cluster.local:9200" $namespace -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-config
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: logging
+data:
+  vector.yaml: |
+    # Vector Configuration for CPTM8 {{ $environment | title }} Environment
+    api:
+      enabled: true
+      address: "0.0.0.0:8686"
+      playground: {{ $isDevMode }}
+
+    # Data directory for Vector's internal state
+    data_dir: "/tmp/vector"
+
+{{- if $isDevMode }}
+    # ==========================================================================
+    # DEVELOPMENT MODE: File-based log sources
+    # ==========================================================================
+    sources:
+      {{- range $name, $scanner := .Values.scanners }}
+      {{- if $scanner.enabled }}
+      {{ $name }}_logs:
+        type: file
+        include:
+          - "/var/log/{{ $name }}/*.log"
+        read_from: beginning
+      {{- end }}
+      {{- end }}
+      {{- range $name, $reporting := .Values.reporting }}
+      {{- if $reporting.enabled }}
+      {{ $name }}_logs:
+        type: file
+        include:
+          - "/var/log/{{ $name }}/*.log"
+        read_from: beginning
+      {{- end }}
+      {{- end }}
+
+    # Transforms - Process and enrich log data
+    transforms:
+      parse_logs:
+        type: remap
+        inputs:
+          {{- range $name, $scanner := .Values.scanners }}
+          {{- if $scanner.enabled }}
+          - "{{ $name }}_logs"
+          {{- end }}
+          {{- end }}
+          {{- range $name, $reporting := .Values.reporting }}
+          {{- if $reporting.enabled }}
+          - "{{ $name }}_logs"
+          {{- end }}
+          {{- end }}
+        source: |
+          # Parse JSON if possible, otherwise keep as text
+          . = parse_json(.message) ?? {"message": .message}
+
+          # Add service name based on source
+          {{- $first := true }}
+          {{- range $name, $scanner := .Values.scanners }}
+          {{- if $scanner.enabled }}
+          {{ if $first }}if{{ else }} else if{{ end }} contains(string!(.file), "{{ $name }}") {
+            .service = "{{ $name }}"
+          }
+          {{- $first = false }}
+          {{- end }}
+          {{- end }}
+          {{- range $name, $reporting := .Values.reporting }}
+          {{- if $reporting.enabled }}
+          {{ if $first }}if{{ else }} else if{{ end }} contains(string!(.file), "{{ $name }}") {
+            .service = "{{ $name }}"
+          }
+          {{- $first = false }}
+          {{- end }}
+          {{- end }}
+
+          # Add environment and namespace
+          .environment = "{{ $environment }}"
+          .namespace = "{{ $namespace }}"
+
+          # Add timestamp if not present
+          if !exists(.timestamp) {
+            .timestamp = now()
+          }
+
+    # Sinks - Output destinations
+    sinks:
+      opensearch_sink:
+        type: elasticsearch
+        inputs:
+          - "parse_logs"
+        endpoints:
+          - "{{ $opensearchEndpoint }}"
+        mode: "bulk"
+        bulk:
+          index: "cptm8-logs-{{ $environment }}-%Y.%m.%d"
+          action: "index"
+        request:
+          timeout_secs: 60
+          retry_attempts: 5
+          retry_max_duration_secs: 300
+          retry_initial_backoff_secs: 1
+        buffer:
+          type: "disk"
+          max_size: 268435488  # 256MB
+          when_full: "block"
+
+      # Console output for development debugging
+      console_sink:
+        type: console
+        inputs:
+          - "parse_logs"
+        encoding:
+          codec: json
+        target: "stdout"
+
+{{- else }}
+    # ==========================================================================
+    # STAGING/PRODUCTION MODE: Kubernetes logs collection
+    # ==========================================================================
+    sources:
+      kubernetes_logs:
+        type: kubernetes_logs
+        # Auto-discover pods in the namespace
+        self_node_name: "${VECTOR_SELF_NODE_NAME}"
+        # Only collect logs from cptm8 pods
+        extra_label_selector: "tier in (application, logging)"
+        # Exclude Vector's own logs to prevent loops
+        exclude_paths_glob_patterns:
+          - "**/vector*/**"
+        # Parse as JSON if possible
+        auto_partial_merge: true
+
+    # Transforms - Process and enrich log data
+    transforms:
+      # Filter to only cptm8 application logs
+      filter_cptm8_logs:
+        type: filter
+        inputs:
+          - kubernetes_logs
+        condition:
+          type: vrl
+          source: |
+            # Only process logs from cptm8 services
+            app = .kubernetes.pod_labels.app ?? ""
+            container = .kubernetes.container_name ?? ""
+            includes(["asmm8", "naabum8", "katanam8", "num8", "orchestratorm8", "reportingm8", "dashboardm8", "socketm8"], app) ||
+            container == "log-streamer"
+
+      # Parse and enrich logs
+      parse_logs:
+        type: remap
+        inputs:
+          - filter_cptm8_logs
+        source: |
+          # Extract service name from Kubernetes metadata
+          .service = .kubernetes.pod_labels.app ?? "unknown"
+
+          # Try to parse the message as JSON
+          parsed, err = parse_json(.message)
+          if err == null {
+            . = merge(., parsed)
+          }
+
+          # Add environment metadata
+          .environment = "{{ $environment }}"
+          .cloud_provider = "{{ .Values.config.frontend.cloudProvider | default "unknown" | lower }}"
+          .namespace = .kubernetes.pod_namespace ?? "{{ $namespace }}"
+          .pod_name = .kubernetes.pod_name ?? "unknown"
+          .container_name = .kubernetes.container_name ?? "unknown"
+          .node_name = .kubernetes.pod_node_name ?? "unknown"
+
+          # Normalize timestamp
+          if !exists(.timestamp) {
+            .timestamp = .kubernetes.timestamp ?? now()
+          }
+
+          # Add log level detection if not present
+          if !exists(.level) {
+            msg = string!(.message)
+            if contains(msg, "ERROR") || contains(msg, "error") {
+              .level = "error"
+            } else if contains(msg, "WARN") || contains(msg, "warn") {
+              .level = "warn"
+            } else if contains(msg, "DEBUG") || contains(msg, "debug") {
+              .level = "debug"
+            } else {
+              .level = "info"
+            }
+          }
+
+          # Clean up kubernetes metadata
+          del(.kubernetes)
+          del(.file)
+          del(.source_type)
+
+      # Route by service type for separate indexes
+      route_by_service:
+        type: route
+        inputs:
+          - parse_logs
+        route:
+          scanners: '.service == "asmm8" || .service == "naabum8" || .service == "katanam8" || .service == "num8"'
+          orchestrator: '.service == "orchestratorm8"'
+          reporting: '.service == "reportingm8"'
+          frontend: '.service == "dashboardm8" || .service == "socketm8"'
+
+    # Sinks - Output destinations
+    sinks:
+      # Main OpenSearch sink for all logs
+      opensearch_all:
+        type: elasticsearch
+        inputs:
+          - parse_logs
+        endpoints:
+          - "{{ $opensearchEndpoint }}"
+        mode: "bulk"
+        bulk:
+          index: "cptm8-logs-{{ $environment }}-%Y.%m.%d"
+          action: "index"
+        request:
+          timeout_secs: 60
+          retry_attempts: 5
+          retry_max_duration_secs: 300
+          retry_initial_backoff_secs: 1
+        buffer:
+          type: "disk"
+          max_size: 268435488  # 256MB
+          when_full: "block"
+        healthcheck:
+          enabled: true
+
+      # Separate index for scanner service logs (high volume)
+      opensearch_scanners:
+        type: elasticsearch
+        inputs:
+          - route_by_service.scanners
+        endpoints:
+          - "{{ $opensearchEndpoint }}"
+        mode: "bulk"
+        bulk:
+          index: "cptm8-scanners-{{ $environment }}-%Y.%m.%d"
+          action: "index"
+        request:
+          timeout_secs: 60
+          retry_attempts: 3
+        buffer:
+          type: "disk"
+          max_size: 536870912  # 512MB for high-volume scanner logs
+          when_full: "drop_newest"
+
+{{- if eq .Values.config.frontend.cloudProvider "AWS" }}
+      # CloudWatch Logs sink (AWS-specific)
+      # Uncomment to enable CloudWatch logging
+      # cloudwatch_logs:
+      #   type: aws_cloudwatch_logs
+      #   inputs:
+      #     - parse_logs
+      #   region: "{{ .Values.config.aws.region }}"
+      #   group_name: "/cptm8/{{ $environment }}/application"
+      #   stream_name: "{{ `{{ service }}-{{ pod_name }}` }}"
+      #   create_missing_group: true
+      #   create_missing_stream: true
+      #   encoding:
+      #     codec: json
+{{- end }}
+{{- end }}
+{{- end }}

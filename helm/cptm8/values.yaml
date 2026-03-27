@@ -1,0 +1,625 @@
+# CPTM8 Helm Chart - Default Values (Development)
+# Override with values-staging-aws.yaml or values-staging-azure.yaml for other environments
+
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
+global:
+  # Environment name
+  environment: dev
+
+  # Kubernetes namespace
+  # namespace: cptm8-dev
+
+  # Image registry (AWS ECR)
+  imageRegistry: 507745009364.dkr.ecr.eu-south-2.amazonaws.com
+  imageTag: dev-latest
+  imagePullPolicy: IfNotPresent
+
+  # Image pull secrets
+  imagePullSecrets:
+    - name: ecr-registry-secret
+
+  # Init container image
+  initImage: busybox:1.35
+
+  # Storage class
+  storageClass: cptm8-dev-ssd
+  logsStorageClass: cptm8-dev-logs-shared
+
+  # Security contexts
+  securityContext:
+    # Go services run as uid 10001
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Default resource allocations (dev - minimal)
+  resources:
+    scanner:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    frontend:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+    database:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+# =============================================================================
+# NAMESPACE
+# =============================================================================
+namespace:
+  create: true
+  annotations: {}
+  resourceQuota:
+    enabled: false
+    requests.cpu: "2"
+    requests.memory: 8Gi
+    limits.cpu: "4"
+    limits.memory: 16Gi
+    persistentvolumeclaims: "10"
+# =============================================================================
+# CONFIGMAP DATA
+# =============================================================================
+config:
+  # Node environment
+  nodeEnv: "development"
+  logLevel: "debug"
+
+  # AWS configuration
+  aws:
+    accountId: "507745009364"
+    region: "eu-south-2"
+
+  # PostgreSQL
+  postgresql:
+    hostname: "postgresql-service"
+    port: "5432"
+    database: "cptm8"
+    rootUsername: "postgres"
+    nonRootUsername: "cpt_dbuser"
+
+  # MongoDB
+  mongodb:
+    hostname: "mongodb-primary-service"
+    port: "27017"
+    database: "cptm8chat"
+    collection: "support"
+    rootUsername: "admin"
+    nonRootUsername: "cpt_dbuser"
+
+  # RabbitMQ
+  rabbitmq:
+    hostname: "rabbitmq-service"
+    port: "5672"
+    managementPort: "15672"
+
+  # OpenSearch
+  opensearch:
+    hostname: "opensearch-service"
+    port: "9200"
+
+  # SMTP
+  smtp:
+    server: "email-smtp.eu-north-1.amazonaws.com"
+    port: "587"
+    emailSender: "no-reply@cptm8.net"
+
+  # Frontend URLs
+  frontend:
+    dashboardUrl: "http://dashboard-dev.cptm8.net:3000"
+    dashboardPort: "3000"
+    socketUrl: "http://socket-dev.cptm8.net:4000"
+    socketPort: "4000"
+    authUrl: "http://dashboard-dev.cptm8.net:3000"
+    userEmailDomain: "clientcorp.net.au"
+    cloudProvider: "AWS"
+
+  # Reporting
+  reporting:
+    companyName: "ACME Corp."
+    awsBucketRegion: "eu-north-1"
+    awsBucketName: "report-cptm8"
+# =============================================================================
+# STORAGECLASS
+# =============================================================================
+storage:
+  retainStorageClass: 
+    create: true
+    provisioner: rancher.io/local-path
+    reclaimPolicy: Retain
+    parameters: {}
+  deleteStorageClass: 
+    create: true
+    provisioner: rancher.io/local-path
+    reclaimPolicy: Delete
+    parameters: {}
+  logsStorageClass:
+    create: true
+    provisioner: kubernetes.io/no-provisioner
+    reclaimPolicy: Retain
+    parameters:
+      type: local
+    mountOptions:
+      - rw
+      - relatime
+      - uid=10001
+      - gid=10001
+  awsEBSStorageClass:
+    create: true
+    provisioner: ebs.csi.aws.com
+    reclaimPolicy: Retain
+    parameters:
+      type: gp3
+      encrypted: "true"
+      iops: "3000"
+      throughput: "125"
+  azureDiskPremiumStorageClass:
+    create: true
+    provisioner: disk.csi.azure.com
+    reclaimPolicy: Retain
+    parameters:
+      # Premium SSD for production-grade performance
+      skuName: Premium_LRS
+      # Enable encryption at rest (uses platform-managed keys by default)
+      # For customer-managed keys, specify diskEncryptionSetID
+      # diskEncryptionSetID: /subscriptions/{sub-id}/resourceGroups/{rg}/providers/Microsoft.Compute/diskEncryptionSets/{des-name}
+      # Network access: Allow from AKS nodes only
+      networkAccessPolicy: AllowPrivate
+      # Enable bursting for Premium SSD (P30 and above)
+      enableBursting: "true"
+  azureDiskStandardStorageClass:
+    create: true
+    provisioner: disk.csi.azure.com
+    reclaimPolicy: Retain
+    parameters:
+      skuName: StandardSSD_LRS
+      networkAccessPolicy: AllowPrivate
+  azureFilesStorageClass:
+    create: true
+    provisioner: file.csi.azure.com
+    reclaimPolicy: Retain
+    parameters:
+      skuName: Premium_LRS
+      # Enable large file shares for better performance
+      enableLargeFileShares: "true"
+    volumeBindingMode: Immediate
+    mountOptions:
+      - dir_mode=0755
+      - file_mode=0644
+      - uid=10001
+      - gid=10001
+      - mfsymlinks
+      - cache=strict
+# =============================================================================
+# SCANNER SERVICES (Go microservices)
+# =============================================================================
+scanners:
+  asmm8:
+    enabled: true
+    replicaCount: 1
+    port: 8000
+    image:
+      tag: ""  # Uses global.imageTag if empty
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources: {}  # Uses global.resources.scanner
+
+  naabum8:
+    enabled: true
+    replicaCount: 1
+    port: 8001
+    # Requires elevated privileges for port scanning
+    privileged: true
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources: {}
+
+  katanam8:
+    enabled: true
+    replicaCount: 1
+    port: 8002
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources: {}
+
+  num8:
+    enabled: true
+    replicaCount: 1
+    port: 8003
+    image:
+      tag: ""
+    # Nuclei templates volume
+    extraVolumes:
+      - name: dir-nuclei-templates
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: dir-nuclei-templates
+        mountPath: /app/nuclei-templates
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources: {}
+
+  orchestratorm8:
+    enabled: true
+    replicaCount: 1
+    port: 8005
+    readOnlyRootFilesystem: true
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "128Mi"
+        cpu: "100m"
+      limits:
+        memory: "512Mi"
+        cpu: "500m"
+# =============================================================================
+# REPORTING SERVICES (Go microservices)
+# =============================================================================
+reporting:  
+  reportingm8:
+    enabled: true
+    replicaCount: 1
+    port: 8004
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources: {}
+# =============================================================================
+# FRONTEND SERVICES (Node.js)
+# =============================================================================
+frontend:
+  dashboardm8:
+    enabled: true
+    replicaCount: 1
+    port: 3000
+    image:
+      tag: ""
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+    probes:
+      initialDelaySeconds: 180
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 3
+      path: /signin
+    resources: {}
+
+  socketm8:
+    enabled: true
+    replicaCount: 1
+    port: 4000
+    image:
+      tag: ""
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+    probes:
+      initialDelaySeconds: 180
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 3
+      livenessPath: /health
+      readinessPath: /ready
+    resources: {}
+# =============================================================================
+# DATABASE SUBCHARTS
+# =============================================================================
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  persistence:
+    enabled: true
+    size: 30Gi
+    storageClass: ""  # Uses global.storageClass
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7.0"
+  replicaSet:
+    name: rs0
+  persistence:
+    dataSize: 20Gi
+    configSize: 1Gi
+  initJob:
+    enabled: true
+    ttlSecondsAfterFinished: 3600
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+rabbitmq:
+  enabled: true
+  image:
+    repository: rabbitmq
+    tag: "3.12-management-alpine"
+  persistence:
+    enabled: true
+    size: 10Gi
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  nodeCount: 2
+  persistence:
+    enabled: true
+    size: 10Gi  # Per node (dev - small)
+  javaOpts: "-Xms512m -Xmx512m"
+  disableSecurity: true
+  dashboard:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "2Gi"
+      cpu: "1000m"
+
+# =============================================================================
+# OBSERVABILITY
+# =============================================================================
+vector:
+  enabled: true
+  image:
+    repository: timberio/vector
+    tag: "0.34.1-alpine"
+  serviceAccount:
+    name: vector-sa
+    create: true
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# =============================================================================
+# INGRESS
+# =============================================================================
+ingress:
+  enabled: false
+  # Controller: nginx, alb, azure-application-gateway
+  className: nginx
+  # Additional annotations (merged with controller-specific ones)
+  annotations: {}
+
+  # Hosts configuration
+  hosts: []
+  # Example:
+  # hosts:
+  #   - host: dashboard.cptm8.net
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  #         serviceName: dashboardm8-service
+  #         servicePort: 3000
+  #   - host: socket.cptm8.net
+  #     paths:
+  #       - path: /
+  #         pathType: Prefix
+  #         serviceName: socketm8-service
+  #         servicePort: 4000
+
+  # TLS configuration (auto-generated from hosts if not specified)
+  tls: []
+  # Example:
+  # tls:
+  #   - hosts:
+  #       - dashboard.cptm8.net
+  #       - socket.cptm8.net
+  #     secretName: cptm8-tls-secret
+
+  # Rate limiting (NGINX only)
+  rateLimit:
+    enabled: false
+    rps: "100"
+    connections: "50"
+
+  # cert-manager integration (NGINX/AGIC)
+  certManager:
+    enabled: false
+    clusterIssuer: letsencrypt-prod
+    email: ""  # Required if createClusterIssuers is true
+    createClusterIssuers: false
+
+  # AWS ALB Ingress Controller settings
+  alb:
+    scheme: internet-facing  # or internal
+    targetType: ip  # or instance
+    certificateArn: ""  # ACM certificate ARN
+    healthcheckPath: /health
+    securityGroups: ""
+    wafAclArn: ""
+
+  # Azure Application Gateway (AGIC) settings
+  agic:
+    wafPolicyId: ""
+    cookieBasedAffinity: false
+
+# =============================================================================
+# NODEPORT SERVICES (Dev only)
+# =============================================================================
+nodePort:
+  enabled: true
+  dashboard:
+    port: 30000
+  socket:
+    port: 30001
+  rabbitmq:
+    port: 30672
+
+# =============================================================================
+# NETWORK POLICIES
+# =============================================================================
+networkPolicies:
+  enabled: true
+
+# =============================================================================
+# AUTOSCALING (HPA)
+# =============================================================================
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# =============================================================================
+# CRONJOBS
+# =============================================================================
+cronjobs:
+  ecrTokenRefresher:
+    enabled: true
+    schedule: "0 */8 * * *"
+    image: amazon/aws-cli:latest
+  acrTokenRefresher:
+    enabled: false
+    schedule: "0 */8 * * *"
+    image: mcr.microsoft.com/azure-cli:latest
+
+# =============================================================================
+# SECRETS CONFIGURATION
+# =============================================================================
+secrets:
+  # Method: "inline", "sops", "external-secrets"
+  method: inline
+
+  # External Secrets Operator configuration
+  externalSecrets:
+    enabled: false
+    secretStore: aws-secrets-manager
+    refreshInterval: 1h
+
+  # Inline secrets (base64 encoded - for dev/testing only)
+  # In production, use SOPS or external-secrets
+  data:
+    postgresql:
+      rootPassword: ""
+      userPassword: ""
+      databaseUrl: ""
+    mongodb:
+      rootPassword: ""
+      userPassword: ""
+      databaseUrl: ""
+    rabbitmq:
+      url: ""
+      username: ""
+      password: ""
+    opensearch:
+      adminPassword: ""
+    application:
+      authSecret: ""
+    smtp:
+      username: ""
+      password: ""
+    aws:
+      s3AccessKey: ""
+      s3SecretKey: ""
+      ecrAccessKeyId: ""
+      ecrSecretAccessKey: ""
+    google:
+      clientId: ""
+      clientSecret: ""
+
+# =============================================================================
+# RBAC
+# =============================================================================
+rbac:
+  create: true
+  serviceAccounts:
+    vector:
+      create: true
+      name: vector-sa
+    ecrTokenRefresher:
+      create: true
+      name: ecr-token-refresher
+    acrTokenRefresher:
+      create: true
+      name: acr-token-refresher
+  roles:
+    developer:
+      create: true
+      name: cptm8-developer-role
+    ecrTokenRefresher:
+      create: true
+      name: ecr-token-refresher-role
+    acrTokenRefresher:
+      create: true
+      name: acr-token-refresher-role
+    vector:
+      create: true
+      name: vector-logs-role
+  clusterroles:
+    vector:
+      create: true
+      name: vector-logs-clusterrole

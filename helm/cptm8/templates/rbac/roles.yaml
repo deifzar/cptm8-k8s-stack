@@ -1,0 +1,147 @@
+{{/*
+Roles and RoleBindings for CPTM8 for development
+*/}}
+{{- if and (eq (include "cptm8.environment" .) "dev") .Values.rbac.create }}
+{{/*
+Developer Role - for development access to namespace resources
+*/}}
+{{- if .Values.rbac.roles.developer.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.rbac.roles.developer.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["pods", "services", "configmaps", "secrets", "persistentvolumeclaims"]
+  verbs: ["*"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets", "replicasets"]
+  verbs: ["*"]
+- apiGroups: ["batch"]
+  resources: ["jobs", "cronjobs"]
+  verbs: ["*"]
+- apiGroups: [""]
+  resources: ["pods/log", "pods/exec"]
+  verbs: ["get", "list", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: dev-team
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.rbac.roles.developer.name }}
+subjects:
+- kind: Group
+  name: cptm8-developers-group
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}
+---
+{{/*
+Vector Role - for logging access to namespace resources
+*/}}
+{{- if .Values.rbac.roles.vector.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.rbac.roles.vector.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: vector-logs-binding
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.rbac.roles.vector.name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.rbac.serviceAccounts.vector.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+{{- end }}
+---
+{{/*
+ECR Token Refresher Role - for managing ECR secrets
+*/}}
+{{- if .Values.rbac.roles.ecrTokenRefresher.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.rbac.roles.ecrTokenRefresher.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ecr-token-refresher-binding
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.rbac.roles.ecrTokenRefresher.name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.rbac.serviceAccounts.ecrTokenRefresher.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+{{- end }}
+---
+{{/*
+ACR Token Refresher Role - for managing ACR secrets (Azure)
+*/}}
+{{- if .Values.rbac.roles.acrTokenRefresher.create }}
+{{- if .Values.cronjobs.acrTokenRefresher.enabled }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.rbac.roles.acrTokenRefresher.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets"]
+  verbs: ["get", "create", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: acr-token-refresher-binding
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.rbac.roles.acrTokenRefresher.name }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.rbac.serviceAccounts.acrTokenRefresher.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,309 @@
+{{/*
+=============================================================================
+REGISTRY TOKEN REFRESHER CRONJOBS
+=============================================================================
+CronJobs to refresh container registry credentials:
+  - ECR Token Refresher (AWS): Refreshes AWS ECR token every 8 hours
+  - ACR Token Refresher (Azure): Refreshes Azure ACR token every 8 hours
+
+ECR tokens expire after 12 hours, so refreshing every 8 hours ensures
+continuous access to private container images.
+*/}}
+{{- $namespace := include "cptm8.namespace" . -}}
+
+{{- if .Values.cronjobs.ecrTokenRefresher.enabled }}
+# =============================================================================
+# AWS ECR TOKEN REFRESHER
+# =============================================================================
+# Refreshes ECR authentication token and updates the ecr-registry-secret
+# Required for pulling images from private AWS ECR repositories
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ecr-token-refresher
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    tier: job
+    component: registry
+spec:
+  schedule: {{ .Values.cronjobs.ecrTokenRefresher.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            {{- include "cptm8.labels" . | nindent 12 }}
+            component: registry
+            tier: job
+            job: ecr-token-refresher
+        spec:
+          serviceAccountName: {{ .Values.rbac.serviceAccounts.ecrTokenRefresher.name }}
+          restartPolicy: OnFailure
+
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+
+          containers:
+          - name: refresh-token
+            image: {{ .Values.cronjobs.ecrTokenRefresher.image }}
+            imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+
+            env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: cptm8-config
+                  key: AWS_REGION
+            - name: AWS_ACCOUNT_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: cptm8-config
+                  key: AWS_ACCOUNT_ID
+            - name: AWS_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: aws-ecr-credentials
+                  key: aws-access-key-id
+            - name: AWS_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: aws-ecr-credentials
+                  key: aws-secret-access-key
+
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "========================================="
+              echo "ECR Token Refresh Job"
+              echo "========================================="
+              echo "Namespace: ${NAMESPACE}"
+              echo "Region: ${AWS_REGION}"
+              echo "Account: ${AWS_ACCOUNT_ID}"
+              echo "========================================="
+
+              echo ""
+              echo "Installing kubectl..."
+              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 2>/dev/null
+              chmod +x kubectl
+              mv kubectl /usr/local/bin/
+
+              echo ""
+              echo "Refreshing ECR token..."
+              ECR_TOKEN=$(aws ecr get-login-password --region ${AWS_REGION})
+
+              if [ -z "$ECR_TOKEN" ]; then
+                echo "ERROR: Failed to get ECR token"
+                exit 1
+              fi
+
+              echo "Token retrieved successfully"
+
+              echo ""
+              echo "Deleting old secret..."
+              kubectl delete secret ecr-registry-secret -n ${NAMESPACE} --ignore-not-found=true
+
+              echo ""
+              echo "Creating new secret..."
+              kubectl create secret docker-registry ecr-registry-secret \
+                --docker-server=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com \
+                --docker-username=AWS \
+                --docker-password="${ECR_TOKEN}" \
+                -n ${NAMESPACE}
+
+              echo ""
+              echo "========================================="
+              echo "ECR token refreshed successfully!"
+              echo "Secret: ecr-registry-secret"
+              echo "Registry: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+              echo "========================================="
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
+
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "128Mi"
+                cpu: "100m"
+{{- end }}
+
+{{- if .Values.cronjobs.acrTokenRefresher.enabled }}
+---
+# =============================================================================
+# AZURE ACR TOKEN REFRESHER
+# =============================================================================
+# Refreshes ACR authentication token and updates the acr-registry-secret
+# Required for pulling images from private Azure Container Registry
+# Note: If using AKS with managed identity, this is typically not needed
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: acr-token-refresher
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    tier: job
+    component: registry
+spec:
+  schedule: {{ .Values.cronjobs.acrTokenRefresher.schedule | quote }}
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 300
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            {{- include "cptm8.labels" . | nindent 12 }}
+            component: registry
+            tier: job
+            job: acr-token-refresher
+        spec:
+          serviceAccountName: {{ .Values.rbac.serviceAccounts.acrTokenRefresher.name | default "acr-token-refresher" }}
+          restartPolicy: OnFailure
+
+          # Security context
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            fsGroup: 1000
+
+          containers:
+          - name: refresh-token
+            image: {{ .Values.cronjobs.acrTokenRefresher.image | default "mcr.microsoft.com/azure-cli:latest" }}
+            imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+
+            env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: ACR_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: cptm8-config
+                  key: AZURE_ACR_NAME
+            - name: AZURE_TENANT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: azure-acr-credentials
+                  key: azure-tenant-id
+                  optional: true
+            - name: AZURE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: azure-acr-credentials
+                  key: azure-client-id
+                  optional: true
+            - name: AZURE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: azure-acr-credentials
+                  key: azure-client-secret
+                  optional: true
+
+            command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+              echo "========================================="
+              echo "ACR Token Refresh Job"
+              echo "========================================="
+              echo "Namespace: ${NAMESPACE}"
+              echo "ACR Name: ${ACR_NAME}"
+              echo "========================================="
+
+              echo ""
+              echo "Installing kubectl..."
+              az aks install-cli 2>/dev/null || {
+                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 2>/dev/null
+                chmod +x kubectl
+                mv kubectl /usr/local/bin/
+              }
+
+              echo ""
+              echo "Logging in to Azure..."
+              if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ] && [ -n "$AZURE_TENANT_ID" ]; then
+                # Service Principal authentication
+                az login --service-principal \
+                  --username "$AZURE_CLIENT_ID" \
+                  --password "$AZURE_CLIENT_SECRET" \
+                  --tenant "$AZURE_TENANT_ID" \
+                  --output none
+              else
+                # Managed Identity authentication (when running on AKS)
+                az login --identity --output none || {
+                  echo "ERROR: Failed to authenticate. Provide service principal credentials or enable managed identity."
+                  exit 1
+                }
+              fi
+
+              echo ""
+              echo "Refreshing ACR token..."
+              ACR_TOKEN=$(az acr login --name ${ACR_NAME} --expose-token --output tsv --query accessToken)
+
+              if [ -z "$ACR_TOKEN" ]; then
+                echo "ERROR: Failed to get ACR token"
+                exit 1
+              fi
+
+              echo "Token retrieved successfully"
+
+              echo ""
+              echo "Deleting old secret..."
+              kubectl delete secret acr-registry-secret -n ${NAMESPACE} --ignore-not-found=true
+
+              echo ""
+              echo "Creating new secret..."
+              kubectl create secret docker-registry acr-registry-secret \
+                --docker-server=${ACR_NAME}.azurecr.io \
+                --docker-username=00000000-0000-0000-0000-000000000000 \
+                --docker-password="${ACR_TOKEN}" \
+                -n ${NAMESPACE}
+
+              echo ""
+              echo "========================================="
+              echo "ACR token refreshed successfully!"
+              echo "Secret: acr-registry-secret"
+              echo "Registry: ${ACR_NAME}.azurecr.io"
+              echo "========================================="
+
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: false
+              capabilities:
+                drop:
+                  - ALL
+
+            resources:
+              requests:
+                memory: "64Mi"
+                cpu: "50m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+{{- end }}

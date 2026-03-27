@@ -1,0 +1,40 @@
+{{/*
+ClusterRoles and ClusterRoleBindings for CPTM8 for non-development
+*/}}
+{{- if and (ne (include "cptm8.environment" .) "dev") .Values.rbac.create }}
+{{/*
+Vector ClusterRole - for reading logs from all pods across the cluster
+*/}}
+{{- if .Values.vector.enabled }}
+{{- if .Values.rbac.clusterroles.vector.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: vector-logs-{{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+rules:
+- apiGroups: [""]
+  resources: ["pods", "pods/log", "namespaces", "nodes"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["events"]
+  verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: vector-logs-binding-{{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: vector-logs-{{ include "cptm8.namespace" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ .Values.rbac.serviceAccounts.vector.name }}
+  namespace: {{ include "cptm8.namespace" . }}
+{{- end }}
+{{- end }}
+{{- end }}

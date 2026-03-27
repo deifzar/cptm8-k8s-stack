@@ -1,0 +1,26 @@
+{{- if .Values.enabled }}
+{{- if .Values.headless.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "rabbitmq.fullname" . }}-headless
+  namespace: {{ include "rabbitmq.namespace" . }}
+  labels:
+    {{- include "rabbitmq.labels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: {{ .Values.service.amqpPort }}
+      targetPort: amqp
+      protocol: TCP
+      name: amqp
+    - port: {{ .Values.service.managementPort }}
+      targetPort: management
+      protocol: TCP
+      name: management
+  selector:
+    {{- include "rabbitmq.selectorLabels" . | nindent 4 }}
+    environment: {{ include "rabbitmq.environment" . }}
+{{- end }}
+{{- end }}

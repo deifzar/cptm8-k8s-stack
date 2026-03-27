@@ -1,0 +1,50 @@
+{{/*
+Namespace for CPTM8 deployment
+Only created if namespace.create is true
+*/}}
+{{- if .Values.namespace }}
+{{- if .Values.namespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    name: {{ include "cptm8.namespace" . }}
+  {{- if .Values.namespace.annotations }}
+  annotations:
+    {{- toYaml .Values.namespace.annotations | nindent 4 }}
+  {{- end }}
+---
+{{/*
+Resource quota for the namespace
+*/}}
+{{- if .Values.namespace.resourceQuota }}
+{{- if .Values.namespace.resourceQuota.enabled }}
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: {{ include "cptm8.namespace" . }}-quota
+  namespace: {{ include "cptm8.namespace" . }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+spec:
+  hard:
+    {{- if .Values.namespace.resourceQuota.cpu }}
+    requests.cpu: {{ .Values.namespace.resourceQuota.cpu.requests | quote }}
+    limits.cpu: {{ .Values.namespace.resourceQuota.cpu.limits | quote }}
+    {{- end }}
+    {{- if .Values.namespace.resourceQuota.memory }}
+    requests.memory: {{ .Values.namespace.resourceQuota.memory.requests | quote }}
+    limits.memory: {{ .Values.namespace.resourceQuota.memory.limits | quote }}
+    {{- end }}
+    {{- if .Values.namespace.resourceQuota.pods }}
+    pods: {{ .Values.namespace.resourceQuota.pods | quote }}
+    {{- end }}
+    {{- if .Values.namespace.resourceQuota.persistentVolumeClaims }}
+    persistentvolumeclaims: {{ .Values.namespace.resourceQuota.persistentVolumeClaims | quote }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

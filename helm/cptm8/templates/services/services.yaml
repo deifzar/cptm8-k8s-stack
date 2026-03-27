@@ -1,0 +1,187 @@
+{{/*
+=============================================================================
+KUBERNETES SERVICES
+=============================================================================
+Renders ClusterIP Services for all application workloads.
+
+Total: 18 services
+  - Main chart: 9 services (frontend, scanners, reporting, vector)
+  - Subcharts: 9 services (postgresql, mongodb, rabbitmq, opensearch)
+
+This file renders the 9 main chart services.
+*/}}
+
+{{- $ctx := . -}}
+{{- $namespace := include "cptm8.namespace" . -}}
+
+{{/*
+=============================================================================
+FRONTEND SERVICES (2)
+=============================================================================
+*/}}
+{{- range $name, $frontend := .Values.frontend }}
+{{- if $frontend.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-service
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.frontendLabels" (dict "name" $name "ctx" $ctx) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "cptm8.frontendSelectorLabels" (dict "name" $name) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $frontend.port }}
+      targetPort: {{ $frontend.port }}
+      protocol: TCP
+{{- end }}
+{{- end }}
+
+{{/*
+=============================================================================
+SCANNER SERVICES (5)
+=============================================================================
+*/}}
+{{- range $name, $scanner := .Values.scanners }}
+{{- if $scanner.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-service
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.scannerLabels" (dict "name" $name "ctx" $ctx) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "cptm8.scannerSelectorLabels" (dict "name" $name) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $scanner.port }}
+      targetPort: {{ $scanner.port }}
+      protocol: TCP
+{{- end }}
+{{- end }}
+
+{{/*
+=============================================================================
+REPORTING SERVICES (1)
+=============================================================================
+*/}}
+{{- range $name, $reporting := .Values.reporting }}
+{{- if $reporting.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $name }}-service
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.reportingLabels" (dict "name" $name "ctx" $ctx) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "cptm8.reportingSelectorLabels" (dict "name" $name) | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $reporting.port }}
+      targetPort: {{ $reporting.port }}
+      protocol: TCP
+{{- end }}
+{{- end }}
+
+{{/*
+=============================================================================
+VECTOR SERVICE (1)
+=============================================================================
+*/}}
+{{- if .Values.vector.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vector-service
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.loggingLabels" (dict "name" "vector" "ctx" $ctx) | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "cptm8.loggingSelectorLabels" (dict "name" "vector") | nindent 4 }}
+  ports:
+    - name: api
+      port: 8686
+      targetPort: 8686
+      protocol: TCP
+{{- end }}
+
+{{/*
+=============================================================================
+NODEPORT SERVICES (Development only)
+=============================================================================
+Exposes frontend services on NodePorts for local development access.
+*/}}
+{{- if .Values.nodePort.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboardm8-nodeport
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.frontendLabels" (dict "name" "dashboardm8" "ctx" $ctx) | nindent 4 }}
+    service-type: nodeport
+spec:
+  type: NodePort
+  selector:
+    {{- include "cptm8.frontendSelectorLabels" (dict "name" "dashboardm8") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.dashboardm8.port }}
+      targetPort: {{ .Values.frontend.dashboardm8.port }}
+      nodePort: {{ .Values.nodePort.dashboard.port }}
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: socketm8-nodeport
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.frontendLabels" (dict "name" "socketm8" "ctx" $ctx) | nindent 4 }}
+    service-type: nodeport
+spec:
+  type: NodePort
+  selector:
+    {{- include "cptm8.frontendSelectorLabels" (dict "name" "socketm8") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.frontend.socketm8.port }}
+      targetPort: {{ .Values.frontend.socketm8.port }}
+      nodePort: {{ .Values.nodePort.socket.port }}
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq-nodeport
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.messagingLabels" (dict "name" "rabbitmq" "ctx" $ctx) | nindent 4 }}
+    service-type: nodeport
+spec:
+  type: NodePort
+  selector:
+    {{- include "cptm8.messagingSelectorLabels" (dict "name" "rabbitmq") | nindent 4 }}
+  ports:
+    - name: management
+      port: 15672
+      targetPort: 15672
+      nodePort: {{ .Values.nodePort.rabbitmq.port }}
+      protocol: TCP
+{{- end }}

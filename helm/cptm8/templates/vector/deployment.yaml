@@ -1,0 +1,242 @@
+{{/*
+=============================================================================
+VECTOR LOG AGGREGATION DEPLOYMENT
+=============================================================================
+Collects logs from all CPTM8 services and forwards to OpenSearch.
+
+Deployment modes:
+  - dev: Deployment with shared PVC mounts for file-based log collection
+  - staging/prod: DaemonSet for kubernetes_logs source collection
+*/}}
+{{- if .Values.vector.enabled }}
+{{- $namespace := include "cptm8.namespace" . -}}
+{{- $isDevMode := eq .Values.global.environment "dev" -}}
+
+{{- if $isDevMode }}
+# =============================================================================
+# DEVELOPMENT MODE: Deployment with shared PVC mounts
+# =============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.loggingLabels" (dict "name" "vector" "ctx" .) | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "cptm8.loggingSelectorLabels" (dict "name" "vector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cptm8.loggingLabels" (dict "name" "vector" "ctx" .) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/vector/config.yaml") . | sha256sum | trunc 8 }}
+    spec:
+      serviceAccountName: {{ .Values.vector.serviceAccount.name }}
+
+      # Init container to wait for OpenSearch
+      initContainers:
+      - name: wait-for-opensearch
+        image: curlimages/curl:8.4.0
+        imagePullPolicy: IfNotPresent
+        env:
+        - name: OPENSEARCH_URL
+          value: {{ printf "http://opensearch-service.%s.svc.cluster.local:9200" $namespace | quote }}
+        command:
+        - sh
+        - -c
+        - |
+          echo "Waiting for OpenSearch cluster to be ready..."
+          until curl "$OPENSEARCH_URL/_cluster/health?wait_for_status=yellow&timeout=50s" \
+            -o /dev/null -s -w "%{http_code}\n" | grep -q "200"; do
+            echo "OpenSearch not ready, waiting..."
+            sleep 5
+          done
+          echo "OpenSearch cluster is ready!"
+
+      containers:
+      - name: vector
+        image: {{ printf "%s:%s" .Values.vector.image.repository .Values.vector.image.tag }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+
+        env:
+        - name: VECTOR_CONFIG_PATH
+          value: "/etc/vector/vector.yaml"
+
+        ports:
+        - containerPort: 8686
+          name: api
+          protocol: TCP
+
+        volumeMounts:
+        - name: vector-config
+          mountPath: /etc/vector
+          readOnly: true
+        - name: vector-data
+          mountPath: /tmp/vector
+        # Log volume mounts for all Go services
+        {{- range $name, $scanner := .Values.scanners }}
+        {{- if $scanner.enabled }}
+        - name: {{ $name }}-logs
+          mountPath: /var/log/{{ $name }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
+        {{- range $name, $reporting := .Values.reporting }}
+        {{- if $reporting.enabled }}
+        - name: {{ $name }}-logs
+          mountPath: /var/log/{{ $name }}
+          readOnly: true
+        {{- end }}
+        {{- end }}
+
+        # Health probes
+        {{- include "cptm8.vectorProbes" . | nindent 8 }}
+
+        # Security context
+        securityContext:
+          {{- include "cptm8.vectorSecurityContext" . | nindent 10 }}
+
+        # Resources
+        {{- if .Values.vector.resources }}
+        resources:
+          {{- toYaml .Values.vector.resources | nindent 10 }}
+        {{- end }}
+
+      volumes:
+      - name: vector-config
+        configMap:
+          name: vector-config
+          defaultMode: 0644
+      - name: vector-data
+        emptyDir: {}
+      # Shared volumes for application logs
+      {{- range $name, $scanner := .Values.scanners }}
+      {{- if $scanner.enabled }}
+      - name: {{ $name }}-logs
+        persistentVolumeClaim:
+          claimName: {{ $name }}-logs-pvc
+      {{- end }}
+      {{- end }}
+      {{- range $name, $reporting := .Values.reporting }}
+      {{- if $reporting.enabled }}
+      - name: {{ $name }}-logs
+        persistentVolumeClaim:
+          claimName: {{ $name }}-logs-pvc
+      {{- end }}
+      {{- end }}
+
+      # Pod security context
+      securityContext:
+        {{- include "cptm8.vectorPodSecurityContext" . | nindent 8 }}
+
+{{- else }}
+# =============================================================================
+# STAGING/PRODUCTION MODE: DaemonSet for kubernetes_logs collection
+# =============================================================================
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vector
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.loggingLabels" (dict "name" "vector" "ctx" .) | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "cptm8.loggingSelectorLabels" (dict "name" "vector") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cptm8.loggingLabels" (dict "name" "vector" "ctx" .) | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/vector/config.yaml") . | sha256sum | trunc 8 }}
+    spec:
+      serviceAccountName: {{ .Values.vector.serviceAccount.name }}
+
+      # Tolerate all taints to run on every node
+      tolerations:
+      - operator: Exists
+
+      containers:
+      - name: vector
+        image: {{ printf "%s:%s" .Values.vector.image.repository .Values.vector.image.tag }}
+        imagePullPolicy: {{ .Values.global.imagePullPolicy }}
+
+        env:
+        - name: VECTOR_CONFIG_PATH
+          value: "/etc/vector/vector.yaml"
+        - name: VECTOR_SELF_NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        - name: VECTOR_SELF_POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: VECTOR_SELF_POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+
+        ports:
+        - containerPort: 8686
+          name: api
+          protocol: TCP
+
+        volumeMounts:
+        - name: vector-config
+          mountPath: /etc/vector
+          readOnly: true
+        - name: vector-data
+          mountPath: /tmp/vector
+        # Kubernetes log directories
+        - name: var-log
+          mountPath: /var/log
+          readOnly: true
+        - name: var-lib-docker-containers
+          mountPath: /var/lib/docker/containers
+          readOnly: true
+        - name: pod-logs
+          mountPath: /var/log/pods
+          readOnly: true
+
+        # Health probes
+        {{- include "cptm8.vectorProbes" . | nindent 8 }}
+
+        # Security context
+        securityContext:
+          runAsUser: 0  # Required to read container logs
+          readOnlyRootFilesystem: true
+
+        # Resources
+        {{- if .Values.vector.resources }}
+        resources:
+          {{- toYaml .Values.vector.resources | nindent 10 }}
+        {{- end }}
+
+      volumes:
+      - name: vector-config
+        configMap:
+          name: vector-config
+          defaultMode: 0644
+      - name: vector-data
+        emptyDir: {}
+      - name: var-log
+        hostPath:
+          path: /var/log
+      - name: var-lib-docker-containers
+        hostPath:
+          path: /var/lib/docker/containers
+      - name: pod-logs
+        hostPath:
+          path: /var/log/pods
+
+      # Pod security context
+      securityContext:
+        fsGroup: 0
+{{- end }}
+{{- end }}

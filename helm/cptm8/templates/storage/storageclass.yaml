@@ -1,0 +1,143 @@
+{{/*
+StorageClass definitions for CPTM8
+Only created if storage.storageClass.create is true
+*/}}
+{{- if .Values.storage }}
+{{- $env := .Values.global.environment }}
+{{- $namespace := include "cptm8.namespace" . }}
+{{- if .Values.storage.retainStorageClass.create }}
+{{/*
+Primary storage class with Retain policy
+*/}}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $namespace }}-ssd-retain
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+allowVolumeExpansion: true
+provisioner: {{ .Values.storage.retainStorageClass.provisioner | default "rancher.io/local-path" }}
+reclaimPolicy: {{ .Values.storage.retainStorageClass.reclaimPolicy | default "Retain" }}
+volumeBindingMode: {{ .Values.storage.retainStorageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+{{- if .Values.storage.retainStorageClass.parameters }}
+parameters:
+  {{- toYaml .Values.storage.retainStorageClass.parameters | nindent 2 }}
+{{- end }}
+{{- end }}
+---
+{{/*
+Delete storage class (for non-critical data)
+*/}}
+{{- if .Values.storage.deleteStorageClass.create }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $namespace }}-ssd-delete
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+allowVolumeExpansion: true
+provisioner: {{ .Values.storage.deleteStorageClass.provisioner | default "rancher.io/local-path" }}
+reclaimPolicy: Delete
+volumeBindingMode: {{ .Values.storage.deleteStorageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+{{- if .Values.storage.deleteStorageClass.parameters }}
+parameters:
+  {{- toYaml .Values.storage.deleteStorageClass.parameters | nindent 2 }}
+{{- end }}
+{{- end }}
+---
+{{/*
+Logs storage class (shared volumes for log aggregation)
+*/}}
+{{- if .Values.storage.logsStorageClass.create }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $namespace }}-log-shared
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+allowVolumeExpansion: true
+provisioner: {{ .Values.storage.logsStorageClass.provisioner | default "rancher.io/local-path" }}
+reclaimPolicy: {{ .Values.storage.logsStorageClass.reclaimPolicy | default "Retain" }}
+volumeBindingMode: {{ .Values.storage.logsStorageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+{{- if .Values.storage.logsStorageClass.parameters }}
+parameters:
+  {{- toYaml .Values.storage.logsStorageClass.parameters | nindent 2 }}
+{{- end }}
+{{- if .Values.storage.logsStorageClass.mountOptions }}
+mountOptions:
+  {{- toYaml .Values.storage.logsStorageClass.mountOptions | nindent 2 }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.storage.awsEBSStorageClass.create }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $namespace }}-ebs-gp3
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+allowVolumeExpansion: true
+provisioner: {{ .Values.storage.awsEBSStorageClass.provisioner | default "ebs.csi.aws.com" }}
+reclaimPolicy: {{ .Values.storage.awsEBSStorageClass.reclaimPolicy | default "Retain" }}
+volumeBindingMode: {{ .Values.storage.awsEBSStorageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+{{- if .Values.storage.awsEBSStorageClass.parameters }}
+parameters:
+  {{- toYaml .Values.storage.awsEBSStorageClass.parameters | nindent 2 }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.storage.azureDiskPremiumStorageClass.create }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $namespace }}-azure-premium
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+allowVolumeExpansion: true
+provisioner: {{ .Values.storage.azureDiskPremiumStorageClass.provisioner | default "disk.csi.azure.com" }}
+reclaimPolicy: {{ .Values.storage.azureDiskPremiumStorageClass.reclaimPolicy | default "Retain" }}
+volumeBindingMode: {{ .Values.storage.azureDiskPremiumStorageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+{{- if .Values.storage.azureDiskPremiumStorageClass.parameters }}
+parameters:
+  {{- toYaml .Values.storage.azureDiskPremiumStorageClass.parameters | nindent 2 }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.storage.azureDiskStandardStorageClass.create }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $namespace }}-azure-standard
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+allowVolumeExpansion: true
+provisioner: {{ .Values.storage.azureDiskStandardStorageClass.provisioner | default "disk.csi.azure.com" }}
+reclaimPolicy: {{ .Values.storage.azureDiskStandardStorageClass.reclaimPolicy | default "Retain" }}
+volumeBindingMode: {{ .Values.storage.azureDiskStandardStorageClass.volumeBindingMode | default "WaitForFirstConsumer" }}
+{{- if .Values.storage.azureDiskStandardStorageClass.parameters }}
+parameters:
+  {{- toYaml .Values.storage.azureDiskStandardStorageClass.parameters | nindent 2 }}
+{{- end }}
+{{- end }}
+---
+{{- if .Values.storage.azureFilesStorageClass.create }}
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: {{ $namespace }}-azure-files
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+allowVolumeExpansion: true
+provisioner: {{ .Values.storage.azureFilesStorageClass.provisioner | default "file.csi.azure.com" }}
+reclaimPolicy: {{ .Values.storage.azureFilesStorageClass.reclaimPolicy | default "Retain" }}
+volumeBindingMode: {{ .Values.storage.azureFilesStorageClass.volumeBindingMode | default "Immediate" }}
+{{- if .Values.storage.azureFilesStorageClass.parameters }}
+parameters:
+  {{- toYaml .Values.storage.azureFilesStorageClass.parameters | nindent 2 }}
+{{- end }}
+{{- if .Values.storage.azureFilesStorageClass.mountOptions }}
+mountOptions:
+  {{- toYaml .Values.storage.azureFilesStorageClass.mountOptions | nindent 2 }}
+{{- end }}
+{{- end }}
+{{- end }}

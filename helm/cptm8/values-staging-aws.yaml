@@ -1,0 +1,604 @@
+# =============================================================================
+# CPTM8 Helm Chart - AWS EKS Staging Environment
+# =============================================================================
+# This file overrides values.yaml for AWS EKS staging deployment.
+#
+# Usage:
+#   helm install cptm8 helm/cptm8 -n cptm8-staging \
+#     -f helm/cptm8/values-staging-aws.yaml \
+#     -f <(sops -d values-secrets-staging-aws.yaml)
+#
+# =============================================================================
+
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
+global:
+  environment: staging
+
+  # AWS ECR Registry
+  imageRegistry: 507745009364.dkr.ecr.eu-south-2.amazonaws.com
+  imageTag: staging-latest
+  imagePullPolicy: Always
+
+  imagePullSecrets:
+    - name: ecr-registry-secret
+
+  # Init container image
+  initImage: busybox:1.36
+
+  # AWS EBS storage class
+  storageClass: cptm8-staging-ebs
+  logsStorageClass: cptm8-staging-ebs
+
+  # Security contexts (same as dev)
+  securityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Staging resource allocations
+  resources:
+    scanner:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    frontend:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    database:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+# =============================================================================
+# NAMESPACE
+# =============================================================================
+namespace:
+  create: true
+  annotations:
+    # AWS-specific annotations
+    iam.amazonaws.com/permitted: "arn:aws:iam::507745009364:role/cptm8-staging-*"
+  resourceQuota:
+    enabled: true
+    requests.cpu: "16"
+    requests.memory: "32Gi"
+    limits.cpu: "32"
+    limits.memory: "64Gi"
+    persistentvolumeclaims: "20"
+
+# =============================================================================
+# CONFIGMAP DATA
+# =============================================================================
+config:
+  # Node environment
+  nodeEnv: "staging"
+  logLevel: "info"
+
+  # AWS configuration
+  aws:
+    accountId: "507745009364"
+    region: "eu-south-2"
+
+  # PostgreSQL
+  postgresql:
+    hostname: "postgresql-service"
+    port: "5432"
+    database: "cptm8"
+    rootUsername: "postgres"
+    nonRootUsername: "cpt_dbuser"
+
+  # MongoDB
+  mongodb:
+    hostname: "mongodb-primary-service"
+    port: "27017"
+    database: "cptm8chat"
+    collection: "support"
+    rootUsername: "admin"
+    nonRootUsername: "cpt_dbuser"
+
+  # RabbitMQ
+  rabbitmq:
+    hostname: "rabbitmq-service"
+    port: "5672"
+    managementPort: "15672"
+
+  # OpenSearch
+  opensearch:
+    hostname: "opensearch-service"
+    port: "9200"
+
+  # SMTP - AWS SES
+  smtp:
+    server: "email-smtp.eu-north-1.amazonaws.com"
+    port: "587"
+    emailSender: "no-reply@cptm8.net"
+
+  # Frontend URLs - HTTPS for staging
+  frontend:
+    dashboardUrl: "https://dashboard-staging.cptm8.net"
+    dashboardPort: "443"
+    socketUrl: "https://socket-staging.cptm8.net"
+    socketPort: "443"
+    authUrl: "https://dashboard-staging.cptm8.net"
+    userEmailDomain: "clientcorp.net.au"
+    cloudProvider: "AWS"
+
+  # Reporting - S3
+  reporting:
+    companyName: "ACME Corp."
+    awsBucketRegion: "eu-north-1"
+    awsBucketName: "report-cptm8-staging"
+
+# =============================================================================
+# STORAGECLASS - AWS EBS
+# =============================================================================
+storage:
+  # Disable local storage classes
+  retainStorageClass:
+    create: false
+  deleteStorageClass:
+    create: false
+  logsStorageClass:
+    create: false
+
+  # Enable AWS EBS storage class
+  awsEBSStorageClass:
+    create: true
+    provisioner: ebs.csi.aws.com
+    reclaimPolicy: Retain
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+    parameters:
+      type: gp3
+      encrypted: "true"
+      iops: "3000"
+      throughput: "125"
+
+  # Disable Azure storage classes
+  azureDiskPremiumStorageClass:
+    create: false
+  azureDiskStandardStorageClass:
+    create: false
+  azureFilesStorageClass:
+    create: false
+
+# =============================================================================
+# SCANNER SERVICES - Staging Configuration
+# =============================================================================
+scanners:
+  asmm8:
+    enabled: true
+    replicaCount: 2
+    port: 8000
+    image:
+      tag: ""  # Uses global.imageTag
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  naabum8:
+    enabled: true
+    replicaCount: 2
+    port: 8001
+    privileged: true
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  katanam8:
+    enabled: true
+    replicaCount: 2
+    port: 8002
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  num8:
+    enabled: true
+    replicaCount: 2
+    port: 8003
+    image:
+      tag: ""
+    extraVolumes:
+      - name: dir-nuclei-templates
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: dir-nuclei-templates
+        mountPath: /app/nuclei-templates
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  orchestratorm8:
+    enabled: true
+    replicaCount: 2
+    port: 8005
+    readOnlyRootFilesystem: true
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+# =============================================================================
+# REPORTING SERVICES
+# =============================================================================
+reporting:
+  reportingm8:
+    enabled: true
+    replicaCount: 2
+    port: 8004
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+# =============================================================================
+# FRONTEND SERVICES
+# =============================================================================
+frontend:
+  dashboardm8:
+    enabled: true
+    replicaCount: 2
+    port: 3000
+    image:
+      tag: ""
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+    probes:
+      initialDelaySeconds: 180
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 3
+      path: /signin
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  socketm8:
+    enabled: true
+    replicaCount: 2
+    port: 4000
+    image:
+      tag: ""
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+    probes:
+      initialDelaySeconds: 180
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 3
+      livenessPath: /health
+      readinessPath: /ready
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+# =============================================================================
+# DATABASE SUBCHARTS - Staging Sizing
+# =============================================================================
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: cptm8-staging-ebs
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7.0"
+  replicaSet:
+    name: rs0
+  persistence:
+    dataSize: 50Gi
+    configSize: 5Gi
+  initJob:
+    enabled: true
+    ttlSecondsAfterFinished: 3600
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+rabbitmq:
+  enabled: true
+  image:
+    repository: rabbitmq
+    tag: "3.12-management-alpine"
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  nodeCount: 3
+  persistence:
+    enabled: true
+    size: 50Gi
+  javaOpts: "-Xms2g -Xmx2g"
+  disableSecurity: false  # Enable security for staging
+  dashboard:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "1000m"
+    limits:
+      memory: "8Gi"
+      cpu: "2000m"
+
+# =============================================================================
+# OBSERVABILITY - Vector
+# =============================================================================
+vector:
+  enabled: true
+  image:
+    repository: timberio/vector
+    tag: "0.34.1-alpine"
+  serviceAccount:
+    name: vector-sa
+    create: true
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# =============================================================================
+# INGRESS - AWS ALB
+# =============================================================================
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    # Additional custom annotations can be added here
+    alb.ingress.kubernetes.io/tags: "Environment=staging,Project=cptm8"
+
+  hosts:
+    - host: dashboard-staging.cptm8.net
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: dashboardm8-service
+          servicePort: 3000
+    - host: socket-staging.cptm8.net
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: socketm8-service
+          servicePort: 4000
+
+  # ALB-specific configuration
+  alb:
+    scheme: internet-facing
+    targetType: ip
+    # Replace with your ACM certificate ARN
+    certificateArn: "arn:aws:acm:eu-south-2:507745009364:certificate/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+    healthcheckPath: /health
+    # Optional: Security groups, WAF
+    securityGroups: ""
+    wafAclArn: ""
+
+  # cert-manager not used with ALB (ACM handles certs)
+  certManager:
+    enabled: false
+
+  rateLimit:
+    enabled: false
+
+# =============================================================================
+# NODEPORT - Disabled for staging
+# =============================================================================
+nodePort:
+  enabled: false
+
+# =============================================================================
+# NETWORK POLICIES - Enabled for staging
+# =============================================================================
+networkPolicies:
+  enabled: true
+
+# =============================================================================
+# AUTOSCALING - Enabled for staging
+# =============================================================================
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# =============================================================================
+# CRONJOBS
+# =============================================================================
+cronjobs:
+  ecrTokenRefresher:
+    enabled: true
+    schedule: "0 */8 * * *"
+    image: amazon/aws-cli:2.15.0
+  acrTokenRefresher:
+    enabled: false
+
+# =============================================================================
+# SECRETS CONFIGURATION
+# =============================================================================
+# For staging, use SOPS or external-secrets
+# Secrets are provided via separate encrypted values file
+secrets:
+  method: sops
+
+  # External Secrets Operator (alternative)
+  externalSecrets:
+    enabled: false
+    secretStore: aws-secrets-manager
+    refreshInterval: 1h
+
+  # Placeholder - actual secrets provided via encrypted file
+  data:
+    postgresql:
+      rootPassword: ""
+      userPassword: ""
+      databaseUrl: ""
+    mongodb:
+      rootPassword: ""
+      userPassword: ""
+      databaseUrl: ""
+    rabbitmq:
+      url: ""
+      username: "cptm8user"
+      password: ""
+    opensearch:
+      adminPassword: ""
+    application:
+      authSecret: ""
+    smtp:
+      username: ""
+      password: ""
+    aws:
+      s3AccessKey: ""
+      s3SecretKey: ""
+      ecrAccessKeyId: ""
+      ecrSecretAccessKey: ""
+    google:
+      clientId: ""
+      clientSecret: ""
+
+# =============================================================================
+# RBAC
+# =============================================================================
+rbac:
+  create: true
+  serviceAccounts:
+    vector:
+      create: true
+      name: vector-sa
+    ecrTokenRefresher:
+      create: true
+      name: ecr-token-refresher
+    acrTokenRefresher:
+      create: false
+  roles:
+    developer:
+      create: false  # No dev role in staging
+    ecrTokenRefresher:
+      create: true
+      name: ecr-token-refresher-role
+    vector:
+      create: true
+      name: vector-logs-role
+  clusterroles:
+    vector:
+      create: true
+      name: vector-logs-clusterrole

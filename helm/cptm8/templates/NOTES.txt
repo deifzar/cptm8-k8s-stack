@@ -1,0 +1,238 @@
+{{- $namespace := include "cptm8.namespace" . -}}
+{{- $environment := .Values.global.environment -}}
+===============================================================================
+  CPTM8 Security Scanning Platform - {{ $environment | upper }} Environment
+===============================================================================
+
+Thank you for installing {{ .Chart.Name }}!
+
+Chart Version: {{ .Chart.Version }}
+App Version:   {{ .Chart.AppVersion }}
+Namespace:     {{ $namespace }}
+Environment:   {{ $environment }}
+
+-------------------------------------------------------------------------------
+  DEPLOYMENT STATUS
+-------------------------------------------------------------------------------
+
+To check the status of your deployment:
+
+  kubectl get pods -n {{ $namespace }}
+  kubectl get services -n {{ $namespace }}
+
+Wait for all pods to be ready:
+
+  kubectl wait --for=condition=Ready pods --all -n {{ $namespace }} --timeout=300s
+
+-------------------------------------------------------------------------------
+  ACCESSING THE APPLICATIONS
+-------------------------------------------------------------------------------
+
+{{- if .Values.ingress.enabled }}
+INGRESS ENABLED:
+{{- range .Values.ingress.hosts }}
+  - {{ .host }}
+{{- end }}
+
+{{- if eq .Values.ingress.className "nginx" }}
+Ensure NGINX Ingress Controller is installed:
+  kubectl get pods -n ingress-nginx
+{{- else if eq .Values.ingress.className "alb" }}
+AWS ALB will be provisioned automatically. Get the ALB DNS:
+  kubectl get ingress cptm8-ingress -n {{ $namespace }} -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+{{- else if eq .Values.ingress.className "azure-application-gateway" }}
+Azure Application Gateway routes will be configured automatically.
+{{- end }}
+
+{{- else }}
+{{- if .Values.nodePort.enabled }}
+NODEPORT ACCESS (Development):
+
+  Dashboard:  http://<NODE_IP>:{{ .Values.nodePort.dashboard.port }}
+  Socket.io:  http://<NODE_IP>:{{ .Values.nodePort.socket.port }}
+  RabbitMQ:   http://<NODE_IP>:{{ .Values.nodePort.rabbitmq.port }}
+
+Get your node IP:
+  kubectl get nodes -o wide
+
+For local Kind cluster:
+  Dashboard:  http://localhost:{{ .Values.nodePort.dashboard.port }}
+  Socket.io:  http://localhost:{{ .Values.nodePort.socket.port }}
+
+{{- else }}
+PORT-FORWARD ACCESS:
+
+  # Dashboard (Next.js)
+  kubectl port-forward svc/dashboardm8-service 3000:3000 -n {{ $namespace }}
+  # Open: http://localhost:3000
+
+  # Socket.io
+  kubectl port-forward svc/socketm8-service 4000:4000 -n {{ $namespace }}
+
+  # RabbitMQ Management
+  kubectl port-forward svc/rabbitmq-service 15672:15672 -n {{ $namespace }}
+  # Open: http://localhost:15672
+
+  # OpenSearch Dashboards
+  kubectl port-forward svc/opensearch-dashboards-service 5601:5601 -n {{ $namespace }}
+  # Open: http://localhost:5601
+{{- end }}
+{{- end }}
+
+-------------------------------------------------------------------------------
+  DATABASE INITIALIZATION
+-------------------------------------------------------------------------------
+
+{{- if and .Values.mongodb.enabled .Values.mongodb.initJob.enabled }}
+MongoDB replica set will be initialized automatically via Helm hook.
+Check the init job status:
+
+  kubectl get jobs mongodb-init -n {{ $namespace }}
+  kubectl logs job/mongodb-init -n {{ $namespace }}
+{{- else }}
+MongoDB initialization is disabled. To manually initialize:
+
+  kubectl apply -f - <<EOF
+  apiVersion: batch/v1
+  kind: Job
+  metadata:
+    name: mongodb-init
+    namespace: {{ $namespace }}
+  ...
+  EOF
+{{- end }}
+
+PostgreSQL is ready to use. Run migrations if needed:
+
+  kubectl exec -it deploy/dashboardm8 -n {{ $namespace }} -- npx prisma migrate deploy
+
+-------------------------------------------------------------------------------
+  LOGGING & OBSERVABILITY
+-------------------------------------------------------------------------------
+
+{{- if .Values.vector.enabled }}
+Vector is collecting logs and forwarding to OpenSearch.
+
+View Vector status:
+  kubectl logs -l app=vector -n {{ $namespace }}
+
+Access OpenSearch Dashboards:
+{{- if .Values.nodePort.enabled }}
+  Port-forward: kubectl port-forward svc/opensearch-dashboards-service 5601:5601 -n {{ $namespace }}
+{{- else }}
+  Via Ingress or port-forward
+{{- end }}
+
+Log indices:
+  - cptm8-logs-{{ $environment }}-YYYY.MM.DD     (all logs)
+  - cptm8-scanners-{{ $environment }}-YYYY.MM.DD (scanner logs)
+{{- end }}
+
+-------------------------------------------------------------------------------
+  SECRETS MANAGEMENT
+-------------------------------------------------------------------------------
+
+{{- if eq .Values.secrets.method "inline" }}
+WARNING: Using inline secrets (development only).
+For production, use SOPS or external-secrets:
+
+  # Edit secrets with SOPS
+  sops values-secrets.yaml
+
+  # Or use External Secrets Operator
+  helm upgrade {{ .Release.Name }} . --set secrets.method=external-secrets
+{{- else if eq .Values.secrets.method "sops" }}
+Secrets are managed with SOPS. To update:
+
+  sops values-secrets.yaml
+  helm upgrade {{ .Release.Name }} . -f values-secrets.yaml
+{{- else if eq .Values.secrets.method "external-secrets" }}
+External Secrets Operator is managing secrets from {{ .Values.secrets.externalSecrets.secretStore }}.
+{{- end }}
+
+-------------------------------------------------------------------------------
+  CONTAINER REGISTRY
+-------------------------------------------------------------------------------
+
+{{- if .Values.cronjobs.ecrTokenRefresher.enabled }}
+ECR Token Refresher is enabled (runs every 8 hours).
+Check CronJob status:
+
+  kubectl get cronjob ecr-token-refresher -n {{ $namespace }}
+  kubectl get jobs -l job=ecr-token-refresher -n {{ $namespace }}
+
+Manually trigger token refresh:
+
+  kubectl create job --from=cronjob/ecr-token-refresher ecr-manual-refresh -n {{ $namespace }}
+{{- end }}
+
+{{- if .Values.cronjobs.acrTokenRefresher.enabled }}
+ACR Token Refresher is enabled (runs every 8 hours).
+Check CronJob status:
+
+  kubectl get cronjob acr-token-refresher -n {{ $namespace }}
+{{- end }}
+
+-------------------------------------------------------------------------------
+  USEFUL COMMANDS
+-------------------------------------------------------------------------------
+
+# View all resources
+kubectl get all -n {{ $namespace }}
+
+# Check pod logs
+kubectl logs -f deploy/dashboardm8 -n {{ $namespace }}
+kubectl logs -f deploy/orchestratorm8 -n {{ $namespace }}
+
+# Execute into a pod
+kubectl exec -it deploy/dashboardm8 -n {{ $namespace }} -- /bin/sh
+
+# Restart a deployment
+kubectl rollout restart deploy/dashboardm8 -n {{ $namespace }}
+
+# Scale a deployment
+kubectl scale deploy/asmm8 --replicas=2 -n {{ $namespace }}
+
+# View secrets
+kubectl get secrets -n {{ $namespace }}
+
+# Describe a failing pod
+kubectl describe pod <pod-name> -n {{ $namespace }}
+
+-------------------------------------------------------------------------------
+  TROUBLESHOOTING
+-------------------------------------------------------------------------------
+
+1. Pods stuck in Pending:
+   - Check PVC status: kubectl get pvc -n {{ $namespace }}
+   - Check StorageClass: kubectl get sc
+
+2. Pods in CrashLoopBackOff:
+   - Check logs: kubectl logs <pod-name> -n {{ $namespace }} --previous
+   - Check events: kubectl describe pod <pod-name> -n {{ $namespace }}
+
+3. Database connection issues:
+   - Verify secrets: kubectl get secret postgresql-secrets -n {{ $namespace }} -o yaml
+   - Check service DNS: kubectl run test --rm -it --image=busybox -- nslookup postgresql-service.{{ $namespace }}
+
+4. Image pull errors:
+   - Check ECR secret: kubectl get secret ecr-registry-secret -n {{ $namespace }}
+   - Manually trigger token refresh (see above)
+
+-------------------------------------------------------------------------------
+  UPGRADE & UNINSTALL
+-------------------------------------------------------------------------------
+
+# Upgrade the release
+helm upgrade {{ .Release.Name }} . -n {{ $namespace }} -f values.yaml
+
+# Uninstall (preserves PVCs by default)
+helm uninstall {{ .Release.Name }} -n {{ $namespace }}
+
+# Full cleanup including PVCs
+helm uninstall {{ .Release.Name }} -n {{ $namespace }}
+kubectl delete pvc --all -n {{ $namespace }}
+
+===============================================================================
+  Happy Scanning!
+===============================================================================

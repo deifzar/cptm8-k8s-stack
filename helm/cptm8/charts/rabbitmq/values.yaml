@@ -1,0 +1,76 @@
+# RabbitMQ Subchart Default Values
+
+# Enable/disable this subchart
+enabled: true
+
+# Name override
+nameOverride: ""
+fullnameOverride: "rabbitmq"
+
+# Image configuration
+image:
+  repository: rabbitmq
+  tag: "3.12-management-alpine"
+  pullPolicy: IfNotPresent
+
+# Replicas
+replicaCount: 1
+
+# Service configuration
+service:
+  type: ClusterIP
+  amqpPort: 5672
+  managementPort: 15672
+
+# Headless service for StatefulSet
+headless:
+  enabled: true
+
+# Persistence configuration
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+# Resource limits
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "500m"
+  limits:
+    memory: "2Gi"
+    cpu: "1000m"
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  fsGroup: 10001
+
+# Probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 30
+  timeoutSeconds: 10
+  failureThreshold: 6
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 10
+  failureThreshold: 3
+
+# Environment variables reference
+env:
+  configMapName: cptm8-config
+  secretName: rabbitmq-secrets

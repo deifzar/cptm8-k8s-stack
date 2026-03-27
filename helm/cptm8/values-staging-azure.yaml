@@ -1,0 +1,640 @@
+# =============================================================================
+# CPTM8 Helm Chart - Azure AKS Staging Environment
+# =============================================================================
+# This file overrides values.yaml for Azure AKS staging deployment.
+#
+# Usage:
+#   helm install cptm8 helm/cptm8 -n cptm8-staging \
+#     -f helm/cptm8/values-staging-azure.yaml \
+#     -f <(sops -d values-secrets-staging-azure.yaml)
+#
+# Prerequisites:
+#   - NGINX Ingress Controller installed
+#   - cert-manager installed
+#   - Azure Disk CSI driver (included in AKS by default)
+#
+# =============================================================================
+
+# =============================================================================
+# GLOBAL CONFIGURATION
+# =============================================================================
+global:
+  environment: staging
+
+  # Azure Container Registry
+  imageRegistry: cptm8acr.azurecr.io
+  imageTag: staging-latest
+  imagePullPolicy: Always
+
+  imagePullSecrets:
+    - name: acr-registry-secret
+
+  # Init container image
+  initImage: busybox:1.36
+
+  # Azure Premium Disk storage class
+  storageClass: cptm8-staging-azure-premium
+  logsStorageClass: cptm8-staging-azure-premium
+
+  # Security contexts
+  securityContext:
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+
+  # Staging resource allocations
+  resources:
+    scanner:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    frontend:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+    database:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "2000m"
+
+# =============================================================================
+# NAMESPACE
+# =============================================================================
+namespace:
+  create: true
+  annotations:
+    # Azure-specific annotations
+    azure.workload.identity/use: "true"
+  resourceQuota:
+    enabled: true
+    requests.cpu: "16"
+    requests.memory: "32Gi"
+    limits.cpu: "32"
+    limits.memory: "64Gi"
+    persistentvolumeclaims: "20"
+
+# =============================================================================
+# CONFIGMAP DATA
+# =============================================================================
+config:
+  # Node environment
+  nodeEnv: "staging"
+  logLevel: "info"
+
+  # Azure configuration
+  azure:
+    subscriptionId: "your-subscription-id"
+    resourceGroup: "cptm8-staging-rg"
+    acrName: "cptm8acr"
+
+  # PostgreSQL
+  postgresql:
+    hostname: "postgresql-service"
+    port: "5432"
+    database: "cptm8"
+    rootUsername: "postgres"
+    nonRootUsername: "cpt_dbuser"
+
+  # MongoDB
+  mongodb:
+    hostname: "mongodb-primary-service"
+    port: "27017"
+    database: "cptm8chat"
+    collection: "support"
+    rootUsername: "admin"
+    nonRootUsername: "cpt_dbuser"
+
+  # RabbitMQ
+  rabbitmq:
+    hostname: "rabbitmq-service"
+    port: "5672"
+    managementPort: "15672"
+
+  # OpenSearch
+  opensearch:
+    hostname: "opensearch-service"
+    port: "9200"
+
+  # SMTP - SendGrid or Azure Communication Services
+  smtp:
+    server: "smtp.sendgrid.net"
+    port: "587"
+    emailSender: "no-reply@cptm8.net"
+
+  # Frontend URLs - HTTPS for staging
+  frontend:
+    dashboardUrl: "https://dashboard-staging.cptm8.net"
+    dashboardPort: "443"
+    socketUrl: "https://socket-staging.cptm8.net"
+    socketPort: "443"
+    authUrl: "https://dashboard-staging.cptm8.net"
+    userEmailDomain: "clientcorp.net.au"
+    cloudProvider: "Azure"
+
+  # Reporting - Azure Blob Storage
+  reporting:
+    companyName: "ACME Corp."
+    azureStorageAccount: "cptm8reports"
+    azureStorageContainer: "reports"
+    # Cross-cloud S3 option (if needed)
+    # awsBucketRegion: "eu-north-1"
+    # awsBucketName: "report-cptm8-staging"
+
+# =============================================================================
+# STORAGECLASS - Azure Disk
+# =============================================================================
+storage:
+  # Disable local storage classes
+  retainStorageClass:
+    create: false
+  deleteStorageClass:
+    create: false
+  logsStorageClass:
+    create: false
+
+  # Disable AWS storage classes
+  awsEBSStorageClass:
+    create: false
+
+  # Enable Azure Premium Disk storage class
+  azureDiskPremiumStorageClass:
+    create: true
+    provisioner: disk.csi.azure.com
+    reclaimPolicy: Retain
+    volumeBindingMode: WaitForFirstConsumer
+    allowVolumeExpansion: true
+    parameters:
+      skuName: Premium_LRS
+      networkAccessPolicy: AllowPrivate
+      enableBursting: "true"
+
+  # Standard SSD for less critical workloads
+  azureDiskStandardStorageClass:
+    create: true
+    provisioner: disk.csi.azure.com
+    reclaimPolicy: Retain
+    volumeBindingMode: WaitForFirstConsumer
+    parameters:
+      skuName: StandardSSD_LRS
+      networkAccessPolicy: AllowPrivate
+
+  # Azure Files for shared storage (if needed)
+  azureFilesStorageClass:
+    create: false
+
+# =============================================================================
+# SCANNER SERVICES - Staging Configuration
+# =============================================================================
+scanners:
+  asmm8:
+    enabled: true
+    replicaCount: 2
+    port: 8000
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  naabum8:
+    enabled: true
+    replicaCount: 2
+    port: 8001
+    privileged: true
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  katanam8:
+    enabled: true
+    replicaCount: 2
+    port: 8002
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  num8:
+    enabled: true
+    replicaCount: 2
+    port: 8003
+    image:
+      tag: ""
+    extraVolumes:
+      - name: dir-nuclei-templates
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: dir-nuclei-templates
+        mountPath: /app/nuclei-templates
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  orchestratorm8:
+    enabled: true
+    replicaCount: 2
+    port: 8005
+    readOnlyRootFilesystem: true
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "250m"
+      limits:
+        memory: "1Gi"
+        cpu: "1000m"
+
+# =============================================================================
+# REPORTING SERVICES
+# =============================================================================
+reporting:
+  reportingm8:
+    enabled: true
+    replicaCount: 2
+    port: 8004
+    image:
+      tag: ""
+    probes:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 5
+      failureThreshold: 3
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+# =============================================================================
+# FRONTEND SERVICES
+# =============================================================================
+frontend:
+  dashboardm8:
+    enabled: true
+    replicaCount: 2
+    port: 3000
+    image:
+      tag: ""
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+    probes:
+      initialDelaySeconds: 180
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 3
+      path: /signin
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+  socketm8:
+    enabled: true
+    replicaCount: 2
+    port: 4000
+    image:
+      tag: ""
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+      fsGroup: 1001
+    probes:
+      initialDelaySeconds: 180
+      periodSeconds: 5
+      timeoutSeconds: 5
+      failureThreshold: 3
+      livenessPath: /health
+      readinessPath: /ready
+    resources:
+      requests:
+        memory: "512Mi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "2000m"
+
+# =============================================================================
+# DATABASE SUBCHARTS - Staging Sizing
+# =============================================================================
+postgresql:
+  enabled: true
+  image:
+    repository: postgres
+    tag: "15-alpine"
+  persistence:
+    enabled: true
+    size: 100Gi
+    storageClass: cptm8-staging-azure-premium
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+mongodb:
+  enabled: true
+  image:
+    repository: mongo
+    tag: "7.0"
+  replicaSet:
+    name: rs0
+  persistence:
+    dataSize: 50Gi
+    configSize: 5Gi
+  initJob:
+    enabled: true
+    ttlSecondsAfterFinished: 3600
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+rabbitmq:
+  enabled: true
+  image:
+    repository: rabbitmq
+    tag: "3.12-management-alpine"
+  persistence:
+    enabled: true
+    size: 20Gi
+  resources:
+    requests:
+      memory: "1Gi"
+      cpu: "500m"
+    limits:
+      memory: "4Gi"
+      cpu: "2000m"
+
+opensearch:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch
+    tag: "2.11.1"
+  nodeCount: 3
+  persistence:
+    enabled: true
+    size: 50Gi
+  javaOpts: "-Xms2g -Xmx2g"
+  disableSecurity: false
+  dashboard:
+    enabled: true
+    image:
+      repository: opensearchproject/opensearch-dashboards
+      tag: "2.11.1"
+  resources:
+    requests:
+      memory: "4Gi"
+      cpu: "1000m"
+    limits:
+      memory: "8Gi"
+      cpu: "2000m"
+
+# =============================================================================
+# OBSERVABILITY - Vector
+# =============================================================================
+vector:
+  enabled: true
+  image:
+    repository: timberio/vector
+    tag: "0.34.1-alpine"
+  serviceAccount:
+    name: vector-sa
+    create: true
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "500m"
+    limits:
+      memory: "1Gi"
+      cpu: "1000m"
+
+# =============================================================================
+# INGRESS - NGINX with cert-manager
+# =============================================================================
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+  hosts:
+    - host: dashboard-staging.cptm8.net
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: dashboardm8-service
+          servicePort: 3000
+    - host: socket-staging.cptm8.net
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: socketm8-service
+          servicePort: 4000
+
+  tls:
+    - hosts:
+        - dashboard-staging.cptm8.net
+        - socket-staging.cptm8.net
+      secretName: cptm8-tls-secret
+
+  # Rate limiting
+  rateLimit:
+    enabled: true
+    rps: "100"
+    connections: "50"
+
+  # cert-manager for TLS
+  certManager:
+    enabled: true
+    clusterIssuer: letsencrypt-prod
+    email: admin@cptm8.net
+    createClusterIssuers: true
+
+  # ALB not used for Azure
+  alb:
+    scheme: ""
+    targetType: ""
+    certificateArn: ""
+
+  # AGIC alternative (if using Application Gateway)
+  agic:
+    wafPolicyId: ""
+    cookieBasedAffinity: false
+
+# =============================================================================
+# NODEPORT - Disabled for staging
+# =============================================================================
+nodePort:
+  enabled: false
+
+# =============================================================================
+# NETWORK POLICIES - Enabled for staging
+# =============================================================================
+networkPolicies:
+  enabled: true
+
+# =============================================================================
+# AUTOSCALING - Enabled for staging
+# =============================================================================
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# =============================================================================
+# CRONJOBS
+# =============================================================================
+cronjobs:
+  ecrTokenRefresher:
+    enabled: false
+  acrTokenRefresher:
+    enabled: true
+    schedule: "0 */8 * * *"
+    image: mcr.microsoft.com/azure-cli:2.55.0
+
+# =============================================================================
+# SECRETS CONFIGURATION
+# =============================================================================
+secrets:
+  method: sops
+
+  # External Secrets Operator (Azure Key Vault)
+  externalSecrets:
+    enabled: false
+    secretStore: azure-key-vault
+    refreshInterval: 1h
+
+  # Placeholder - actual secrets provided via encrypted file
+  data:
+    postgresql:
+      rootPassword: ""
+      userPassword: ""
+      databaseUrl: ""
+    mongodb:
+      rootPassword: ""
+      userPassword: ""
+      databaseUrl: ""
+    rabbitmq:
+      url: ""
+      username: "cptm8user"
+      password: ""
+    opensearch:
+      adminPassword: ""
+    application:
+      authSecret: ""
+    smtp:
+      username: ""
+      password: ""
+    aws:
+      # S3 credentials if using cross-cloud
+      s3AccessKey: ""
+      s3SecretKey: ""
+      ecrAccessKeyId: ""
+      ecrSecretAccessKey: ""
+    azure:
+      # Azure Blob Storage credentials
+      storageAccountName: ""
+      storageAccountKey: ""
+    google:
+      clientId: ""
+      clientSecret: ""
+
+# =============================================================================
+# RBAC
+# =============================================================================
+rbac:
+  create: true
+  serviceAccounts:
+    vector:
+      create: true
+      name: vector-sa
+    ecrTokenRefresher:
+      create: false
+    acrTokenRefresher:
+      create: true
+      name: acr-token-refresher
+  roles:
+    developer:
+      create: false
+    ecrTokenRefresher:
+      create: false
+    acrTokenRefresher:
+      create: true
+      name: acr-token-refresher-role
+    vector:
+      create: true
+      name: vector-logs-role
+  clusterroles:
+    vector:
+      create: true
+      name: vector-logs-clusterrole

@@ -1,0 +1,142 @@
+{{- if .Values.enabled }}
+{{- $namespace := include "opensearch.namespace" . }}
+{{- $environment := include "opensearch.environment" . }}
+{{- $discoveryHosts := include "opensearch.discoveryHosts" . }}
+{{- $initialMasterNodes := include "opensearch.initialMasterNodes" . }}
+{{- $storageClass := include "opensearch.storageClass" . }}
+{{- $ctx := . }}
+
+{{- range $nodeName, $nodeConfig := .Values.nodes }}
+{{- if $nodeConfig.enabled }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: opensearch-{{ $nodeName }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "opensearch.labels" $ctx | nindent 4 }}
+    app: opensearch-{{ $nodeName }}
+    tier: logging
+spec:
+  serviceName: {{ $ctx.Values.clusterName }}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch-{{ $nodeName }}
+      environment: {{ $environment }}
+  template:
+    metadata:
+      labels:
+        app: opensearch-{{ $nodeName }}
+        environment: {{ $environment }}
+        tier: logging
+        opensearch-role: {{ $nodeConfig.role }}
+    spec:
+      {{- if $ctx.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml $ctx.Values.podSecurityContext | nindent 8 }}
+      {{- end }}
+      {{- if $ctx.Values.initSysctl.enabled }}
+      initContainers:
+      - name: configure-sysctl
+        image: {{ $ctx.Values.initSysctl.image }}
+        command: ['sh', '-c', 'echo "vm.max_map_count=262144" > /tmp/sysctl.conf && sysctl -p /tmp/sysctl.conf || true']
+        securityContext:
+          privileged: true
+      {{- end }}
+      containers:
+      - name: opensearch-{{ $nodeName }}
+        image: "{{ $ctx.Values.image.repository }}:{{ $ctx.Values.image.tag }}"
+        imagePullPolicy: {{ $ctx.Values.image.pullPolicy }}
+        env:
+        - name: cluster.name
+          value: {{ $ctx.Values.clusterName | quote }}
+        - name: node.name
+          value: "opensearch-{{ $nodeName }}"
+        - name: discovery.seed_hosts
+          value: {{ $discoveryHosts | quote }}
+        - name: cluster.initial_cluster_manager_nodes
+          value: {{ $initialMasterNodes | quote }}
+        - name: bootstrap.memory_lock
+          value: "false"
+        - name: OPENSEARCH_JAVA_OPTS
+          value: {{ $nodeConfig.javaOpts | quote }}
+        - name: DISABLE_INSTALL_DEMO_CONFIG
+          value: {{ $ctx.Values.security.disableDemoConfig | quote }}
+        - name: DISABLE_SECURITY_PLUGIN
+          value: {{ $ctx.Values.security.disablePlugin | quote }}
+        {{- if not $ctx.Values.security.disablePlugin }}
+        - name: OPENSEARCH_INITIAL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ $ctx.Values.env.secretName }}
+              key: opensearch-admin-password
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ $ctx.Values.service.httpPort }}
+          protocol: TCP
+        - name: transport
+          containerPort: {{ $ctx.Values.service.transportPort }}
+          protocol: TCP
+        - name: perf
+          containerPort: {{ $ctx.Values.service.perfPort }}
+          protocol: TCP
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/opensearch/data
+        {{- if $ctx.Values.env.configMapName }}
+        - name: config
+          mountPath: /usr/share/opensearch/config/opensearch-security/internal_users.yml
+          subPath: internal_users.yml
+          readOnly: true
+        {{- end }}
+        resources:
+          {{- toYaml $nodeConfig.resources | nindent 10 }}
+        {{- if $ctx.Values.livenessProbe.enabled }}
+        livenessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: {{ $ctx.Values.service.httpPort }}
+            scheme: HTTP
+          initialDelaySeconds: {{ $ctx.Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ $ctx.Values.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ $ctx.Values.livenessProbe.timeoutSeconds }}
+        {{- end }}
+        {{- if $ctx.Values.readinessProbe.enabled }}
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health?local=true
+            port: {{ $ctx.Values.service.httpPort }}
+            scheme: HTTP
+          initialDelaySeconds: {{ $ctx.Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ $ctx.Values.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ $ctx.Values.readinessProbe.timeoutSeconds }}
+        {{- end }}
+        {{- if $ctx.Values.securityContext }}
+        securityContext:
+          {{- toYaml $ctx.Values.securityContext | nindent 10 }}
+        {{- end }}
+      volumes:
+      {{- if $ctx.Values.env.configMapName }}
+      - name: config
+        configMap:
+          name: {{ $ctx.Values.env.configMapName }}
+          defaultMode: 0644
+      {{- end }}
+  {{- if $ctx.Values.persistence.enabled }}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+        {{- toYaml $ctx.Values.persistence.accessModes | nindent 8 }}
+      storageClassName: {{ $storageClass }}
+      resources:
+        requests:
+          storage: {{ $ctx.Values.persistence.size }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

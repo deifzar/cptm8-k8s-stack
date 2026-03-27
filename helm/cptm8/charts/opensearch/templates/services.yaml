@@ -1,0 +1,50 @@
+{{- if .Values.enabled }}
+{{- $namespace := include "opensearch.namespace" . }}
+{{- $environment := include "opensearch.environment" . }}
+---
+# Main OpenSearch service (load balanced across all nodes)
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-service
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "opensearch.labels" . | nindent 4 }}
+    app: opensearch
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.httpPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.service.perfPort }}
+      targetPort: perf
+      protocol: TCP
+      name: perf
+  selector:
+    environment: {{ $environment }}
+    opensearch-role: master
+---
+# Dashboard service
+{{- if .Values.dashboard.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: opensearch-dashboard-service
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "opensearch.labels" . | nindent 4 }}
+    app: opensearch-dashboard
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.dashboard.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app: opensearch-dashboard
+    environment: {{ $environment }}
+{{- end }}
+{{- end }}

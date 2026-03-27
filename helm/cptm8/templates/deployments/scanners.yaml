@@ -1,0 +1,29 @@
+{{/*
+=============================================================================
+SCANNER AND REPORTING DEPLOYMENTS
+=============================================================================
+Renders Deployments for all Go-based microservices:
+  - Scanners: asmm8, naabum8, katanam8, num8, orchestratorm8
+  - Reporting: reportingm8
+
+Each deployment is rendered using the generic cptm8.goScannerDeployment template
+from _go-scanner.tpl, which handles all the common patterns and special cases.
+*/}}
+
+{{/*
+Render scanner deployments from Values.scanners
+*/}}
+{{- range $name, $scanner := .Values.scanners }}
+{{- if $scanner.enabled }}
+{{ include "cptm8.goScannerDeployment" (dict "name" $name "ctx" $) }}
+{{- end }}
+{{- end }}
+
+{{/*
+Render reporting deployments from Values.reporting
+*/}}
+{{- range $name, $reporting := .Values.reporting }}
+{{- if $reporting.enabled }}
+{{ include "cptm8.goScannerDeployment" (dict "name" $name "ctx" $) }}
+{{- end }}
+{{- end }}

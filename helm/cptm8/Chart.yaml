@@ -1,0 +1,31 @@
+apiVersion: v2
+name: cptm8
+description: CPTM8 - Continuous Penetration Testing Platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - security
+  - asset-management
+  - penetration-testing
+  - vulnerability-scanning
+maintainers:
+  - name: CPTM8 Team
+    email: hello@cptm8.net
+dependencies:
+  - name: postgresql
+    version: "0.1.0"
+    repository: "file://charts/postgresql"
+    condition: postgresql.enabled
+  - name: mongodb
+    version: "0.1.0"
+    repository: "file://charts/mongodb"
+    condition: mongodb.enabled
+  - name: rabbitmq
+    version: "0.1.0"
+    repository: "file://charts/rabbitmq"
+    condition: rabbitmq.enabled
+  - name: opensearch
+    version: "0.1.0"
+    repository: "file://charts/opensearch"
+    condition: opensearch.enabled

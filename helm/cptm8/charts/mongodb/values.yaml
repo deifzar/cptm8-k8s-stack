@@ -1,0 +1,90 @@
+# MongoDB Subchart Default Values
+
+# Enable/disable this subchart
+enabled: true
+
+# Name override
+nameOverride: ""
+fullnameOverride: "mongodb-primary"
+
+# Image configuration
+image:
+  repository: mongo
+  tag: "7.0"
+  pullPolicy: IfNotPresent
+
+# Replicas
+replicaCount: 3
+
+# Replica Set configuration
+replicaSet:
+  name: rs0
+  enabled: true
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 27017
+
+# Headless service for StatefulSet
+headless:
+  enabled: true
+
+# Persistence configuration
+persistence:
+  enabled: true
+  storageClass: ""  # Empty = use global
+  storageClassDelete: ""  # For non-critical data (config)
+  dataSize: 20Gi
+  configSize: 1Gi
+  accessModes:
+    - ReadWriteOnce
+
+# Resource limits
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "1Gi"
+    cpu: "500m"
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  fsGroup: 10001
+
+# Probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+# Init Job configuration
+initJob:
+  enabled: true
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 3
+
+# Environment variables reference
+env:
+  configMapName: cptm8-config
+  secretName: mongodb-secrets

@@ -1,0 +1,117 @@
+# OpenSearch Subchart Default Values
+
+# Enable/disable this subchart
+enabled: true
+
+# Cluster name
+clusterName: opensearch-cluster
+
+# Image configuration
+image:
+  repository: opensearchproject/opensearch
+  tag: "2.11.1"
+  pullPolicy: IfNotPresent
+
+# Number of nodes (creates StatefulSets for each)
+nodeCount: 2
+
+# Node configuration (per node)
+nodes:
+  node1:
+    enabled: true
+    role: master
+    javaOpts: "-Xms512m -Xmx512m"
+    resources:
+      requests:
+        memory: "1Gi"
+        cpu: "500m"
+      limits:
+        memory: "2Gi"
+        cpu: "1000m"
+  node2:
+    enabled: true
+    role: master
+    javaOpts: "-Xms2g -Xmx2g"
+    resources:
+      requests:
+        memory: "2Gi"
+        cpu: "500m"
+      limits:
+        memory: "4Gi"
+        cpu: "1000m"
+
+# Service configuration
+service:
+  type: ClusterIP
+  httpPort: 9200
+  transportPort: 9300
+  perfPort: 9600
+
+# Headless service for cluster discovery
+headless:
+  enabled: true
+
+# Persistence configuration
+persistence:
+  enabled: true
+  storageClass: ""
+  size: 10Gi
+  accessModes:
+    - ReadWriteOnce
+
+# Security settings
+security:
+  disablePlugin: true
+  disableDemoConfig: true
+
+# Init container for sysctl settings
+initSysctl:
+  enabled: true
+  image: busybox:1.35
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  fsGroup: 1000
+
+# Probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 90
+  periodSeconds: 30
+  timeoutSeconds: 10
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+
+# Dashboard configuration
+dashboard:
+  enabled: true
+  image:
+    repository: opensearchproject/opensearch-dashboards
+    tag: "2.11.1"
+  replicaCount: 1
+  port: 5601
+  disableSecurityPlugin: true
+  resources:
+    requests:
+      memory: "512Mi"
+      cpu: "250m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+
+# Environment variables reference
+env:
+  configMapName: opensearch-config
+  secretName: opensearch-secrets

@@ -1,0 +1,17 @@
+{{/*
+=============================================================================
+FRONTEND DEPLOYMENTS
+=============================================================================
+Renders Deployments for Node.js frontend services:
+  - dashboardm8: Next.js dashboard (port 3000)
+  - socketm8: Socket.io WebSocket server (port 4000)
+
+Each deployment is rendered using the generic cptm8.frontendDeployment template
+from _frontend.tpl, which handles the common patterns and service-specific configs.
+*/}}
+
+{{- range $name, $frontend := .Values.frontend }}
+{{- if $frontend.enabled }}
+{{ include "cptm8.frontendDeployment" (dict "name" $name "ctx" $) }}
+{{- end }}
+{{- end }}

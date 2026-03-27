@@ -1,0 +1,125 @@
+{{/*
+=============================================================================
+MAIN APPLICATION CONFIGMAP
+=============================================================================
+Contains all environment variables and service configuration.
+80+ configuration keys for the CPTM8 platform.
+*/}}
+{{- $namespace := include "cptm8.namespace" . -}}
+{{- $dnsSuffix := printf ".%s.svc.cluster.local" $namespace -}}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cptm8-config
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+data:
+  # ===========================================================================
+  # ENVIRONMENT SETTINGS
+  # ===========================================================================
+  NODE_ENV: {{ .Values.config.nodeEnv | quote }}
+  ENVIRONMENT: {{ .Values.global.environment | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+
+  # ===========================================================================
+  # AWS CONFIGURATION
+  # ===========================================================================
+  AWS_ACCOUNT_ID: {{ .Values.config.aws.accountId | quote }}
+  AWS_REGION: {{ .Values.config.aws.region | quote }}
+
+  # ===========================================================================
+  # POSTGRESQL CONFIGURATION
+  # ===========================================================================
+  POSTGRESQL_HOSTNAME: {{ printf "postgresql-service%s" $dnsSuffix | quote }}
+  POSTGRESQL_PORT: {{ .Values.config.postgresql.port | quote }}
+  POSTGRESQL_DB: {{ .Values.config.postgresql.database | quote }}
+  POSTGRESQL_ROOT_USERNAME: {{ .Values.config.postgresql.rootUsername | quote }}
+  POSTGRESQL_NON_ROOT_USERNAME: {{ .Values.config.postgresql.nonRootUsername | quote }}
+
+  # ===========================================================================
+  # MONGODB CONFIGURATION
+  # ===========================================================================
+  MONGODB1_HOSTNAME: {{ printf "mongodb-primary-service%s" $dnsSuffix | quote }}
+  MONGODB_PORT: {{ .Values.config.mongodb.port | quote }}
+  MONGO_INITDB_ROOT_USERNAME: {{ .Values.config.mongodb.rootUsername | quote }}
+  MONGO_NON_ROOT_USERNAME: {{ .Values.config.mongodb.nonRootUsername | quote }}
+  MONGO_INITDB_DATABASE: {{ .Values.config.mongodb.database | quote }}
+  MONGO_INITDB_COLLECTION: {{ .Values.config.mongodb.collection | quote }}
+
+  # ===========================================================================
+  # RABBITMQ CONFIGURATION
+  # ===========================================================================
+  RABBITMQ_HOSTNAME: {{ printf "rabbitmq-service%s" $dnsSuffix | quote }}
+  RABBITMQ_PORT: {{ .Values.config.rabbitmq.port | quote }}
+  RABBITMQ_MANAGEMENT_PORT: {{ .Values.config.rabbitmq.managementPort | quote }}
+  RabbitMQ_EXCHANGE: "notification"
+
+  # ===========================================================================
+  # OPENSEARCH CONFIGURATION
+  # ===========================================================================
+  OPENSEARCH_HOSTNAME: {{ printf "opensearch-service%s" $dnsSuffix | quote }}
+  OPENSEARCH_PORT: {{ .Values.config.opensearch.port | quote }}
+  OPENSEARCH1_HOSTNAME: {{ printf "opensearch-service%s" $dnsSuffix | quote }}
+  OPENSEARCH2_HOSTNAME: {{ printf "opensearch-node2-service%s" $dnsSuffix | quote }}
+  OPENSEARCH_DASHBOARD_HOSTNAME: {{ printf "opensearch-dashboard-service%s" $dnsSuffix | quote }}
+
+  # ===========================================================================
+  # VECTOR CONFIGURATION
+  # ===========================================================================
+  VECTOR_HOSTNAME: {{ printf "vector-service%s" $dnsSuffix | quote }}
+
+  # ===========================================================================
+  # SMTP CONFIGURATION
+  # ===========================================================================
+  SMTP_SERVER: {{ .Values.config.smtp.server | quote }}
+  SMTP_PORT: {{ .Values.config.smtp.port | quote }}
+  SMTP_EMAILSENDER: {{ .Values.config.smtp.emailSender | quote }}
+
+  # ===========================================================================
+  # FRONTEND CONFIGURATION
+  # ===========================================================================
+  DASHBOARDM8_HOSTNAME: {{ printf "dashboardm8-service%s" $dnsSuffix | quote }}
+  DASHBOARDM8_PORT: {{ .Values.config.frontend.dashboardPort | quote }}
+  DASHBOARDM8_URL: {{ .Values.config.frontend.dashboardUrl | quote }}
+
+  SOCKETM8_HOSTNAME: {{ printf "socketm8-service%s" $dnsSuffix | quote }}
+  SOCKETM8_PORT: {{ .Values.config.frontend.socketPort | quote }}
+  SOCKETM8_URL: {{ .Values.config.frontend.socketUrl | quote }}
+
+  # AuthJS/NextAuth URL configuration
+  AUTH_URL: {{ .Values.config.frontend.authUrl | quote }}
+  NEXTAUTH_URL: {{ .Values.config.frontend.authUrl | quote }}
+  NEXT_DASHBOARD_URL: {{ .Values.config.frontend.dashboardUrl | quote }}
+
+  USER_EMAIL_DOMAIN: {{ .Values.config.frontend.userEmailDomain | quote }}
+  CLOUD_PROVIDER: {{ .Values.config.frontend.cloudProvider | quote }}
+  CORS: {{ printf "%s %s" .Values.config.frontend.dashboardUrl .Values.config.frontend.socketUrl | quote }}
+
+  # ===========================================================================
+  # REPORTING CONFIGURATION
+  # ===========================================================================
+  COMPANY_NAME: {{ .Values.config.reporting.companyName | quote }}
+  AWS_BUCKET_REGION: {{ .Values.config.reporting.awsBucketRegion | quote }}
+  AWS_BUCKET_NAME: {{ .Values.config.reporting.awsBucketName | quote }}
+
+  # ===========================================================================
+  # SCANNER SERVICE HOSTNAMES
+  # ===========================================================================
+  ASMM8_HOSTNAME: {{ printf "asmm8-service%s" $dnsSuffix | quote }}
+  NAABUM8_HOSTNAME: {{ printf "naabum8-service%s" $dnsSuffix | quote }}
+  KATANAM8_HOSTNAME: {{ printf "katanam8-service%s" $dnsSuffix | quote }}
+  NUM8_HOSTNAME: {{ printf "num8-service%s" $dnsSuffix | quote }}
+  REPORTINGM8_HOSTNAME: {{ printf "reportingm8-service%s" $dnsSuffix | quote }}
+  ORCHESTRATORM8_HOSTNAME: {{ printf "orchestratorm8-service%s" $dnsSuffix | quote }}
+
+  # ===========================================================================
+  # SCANNER SERVICE URLs
+  # ===========================================================================
+  ASMM8_URL: {{ printf "http://asmm8-service%s:%d" $dnsSuffix (.Values.scanners.asmm8.port | int) | quote }}
+  NAABUM8_URL: {{ printf "http://naabum8-service%s:%d" $dnsSuffix (.Values.scanners.naabum8.port | int) | quote }}
+  KATANAM8_URL: {{ printf "http://katanam8-service%s:%d" $dnsSuffix (.Values.scanners.katanam8.port | int) | quote }}
+  NUM8_URL: {{ printf "http://num8-service%s:%d" $dnsSuffix (.Values.scanners.num8.port | int) | quote }}
+  REPORTINGM8_URL: {{ printf "http://reportingm8-service%s:%d" $dnsSuffix (.Values.reporting.reportingm8.port | int) | quote }}
+  ORCHESTRATORM8_URL: {{ printf "http://orchestratorm8-service%s:%d" $dnsSuffix (.Values.scanners.orchestratorm8.port | int) | quote }}

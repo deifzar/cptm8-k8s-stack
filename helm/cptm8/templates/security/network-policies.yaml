@@ -1,0 +1,437 @@
+{{/*
+=============================================================================
+NETWORK POLICIES
+=============================================================================
+Network segmentation for CPTM8 platform:
+
+1. Default Deny All      - Block all traffic by default
+2. Frontend Policy       - Dashboard/Socket to backend/databases
+3. OpenSearch Dashboard  - Dashboard to logging tier
+4. Database Tier Policy  - Databases receive from application tier
+5. Messaging Tier Policy - RabbitMQ to/from scanners and frontend
+6. Reporting Tier Policy - Reporting to databases, messaging, external APIs
+7. Scanner Tier Policy   - Scanners to databases, messaging, external targets
+8. Logging Tier Policy   - Vector to OpenSearch cluster communication
+9. DNS Egress Policy     - All pods can resolve DNS
+10. SMTP Egress Policy   - Email-sending services can reach SMTP servers
+
+Security notes:
+  - Scanners need unrestricted external egress for scanning targets
+  - Private IP ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) excluded from external access
+  - All internal communication uses label-based selectors
+*/}}
+{{- if .Values.networkPolicies.enabled }}
+{{- $namespace := include "cptm8.namespace" . -}}
+{{- $environment := .Values.global.environment -}}
+
+# =============================================================================
+# 1. DEFAULT DENY ALL POLICY
+# =============================================================================
+# Block all ingress and egress traffic by default
+# Other policies explicitly allow required traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-default-deny-all
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  - Ingress
+
+---
+# =============================================================================
+# 2. FRONTEND TIER POLICY
+# =============================================================================
+# Dashboard and Socket.io services
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-frontend-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      tier: application
+      component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from ingress controller (external traffic)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  {{- if eq $environment "dev" }}
+  # Dev: Allow direct NodePort access
+  - from: []
+  {{- end }}
+  egress:
+  # Allow to application tier (backend APIs)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: application
+  # Allow to databases (PostgreSQL, MongoDB)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+  # Allow to messaging (socketm8 to RabbitMQ)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: messaging
+  # Allow external HTTPS (for ECR, AWS APIs, etc.)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+---
+# =============================================================================
+# 3. OPENSEARCH DASHBOARD POLICY
+# =============================================================================
+# OpenSearch Dashboards frontend
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-opensearch-dashboard-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      tier: logging
+      component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from ingress controller (external traffic)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+  {{- if eq $environment "dev" }}
+  # Dev: Allow direct NodePort access
+  - from: []
+  {{- end }}
+  egress:
+  # Allow to logging tier (OpenSearch and Vector)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: logging
+  # Allow external HTTPS (updates)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# =============================================================================
+# 4. DATABASE TIER POLICY
+# =============================================================================
+# PostgreSQL, MongoDB, OpenSearch
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-database-tier-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      tier: data
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from application tier (frontend, scanners, reporting)
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: application
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: data
+  egress:
+  # Allow intra-tier communication (for replica set and init job)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    ports:
+    - protocol: TCP
+      port: 27017   # MongoDB
+    - protocol: TCP
+      port: 5432    # PostgreSQL
+
+---
+# =============================================================================
+# 5. MESSAGING TIER POLICY
+# =============================================================================
+# RabbitMQ message broker
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-messaging-tier-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      tier: messaging
+  policyTypes:
+  - Egress
+  - Ingress
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  ingress:
+  # RabbitMQ receives from scanners (publish/consume)
+  - from:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  # RabbitMQ receives from socketm8 (real-time updates)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: socketm8
+
+---
+# =============================================================================
+# 6. REPORTING TIER POLICY
+# =============================================================================
+# Report generation service
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-reporting-tier-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      component: reporting
+  policyTypes:
+  - Egress
+  - Ingress
+  egress:
+  # Allow to databases (PostgreSQL)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    ports:
+    - protocol: TCP
+      port: 5432
+  # Allow to messaging (RabbitMQ)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: messaging
+    ports:
+    - protocol: TCP
+      port: 5672
+  # Allow HTTPS for external APIs (S3, Azure Blob, etc.)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8       # Exclude private ranges
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+  ingress:
+  # Allow from orchestrator
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - orchestratorm8
+
+---
+# =============================================================================
+# 7. SCANNER TIER POLICY
+# =============================================================================
+# Security scanning services (asmm8, naabum8, katanam8, num8)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-scanner-tier-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      component: scanner
+  policyTypes:
+  - Egress
+  - Ingress
+  egress:
+  # Allow to databases (PostgreSQL + MongoDB)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: data
+    ports:
+    - protocol: TCP
+      port: 5432
+    - protocol: TCP
+      port: 27017
+  # Allow to messaging (RabbitMQ)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: messaging
+    ports:
+    - protocol: TCP
+      port: 5672
+  # Allow communication between scanners (via orchestratorm8)
+  - to:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  # IMPORTANT: Scanners need unrestricted external egress for scanning targets
+  # naabum8 scans arbitrary ports, asmm8 queries external DNS, num8 probes services
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8       # Exclude private ranges (use internal policies)
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+  ingress:
+  # Allow from orchestrator and other scanners
+  - from:
+    - podSelector:
+        matchLabels:
+          component: scanner
+  # Allow from RabbitMQ (message delivery)
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: messaging
+
+---
+# =============================================================================
+# 8. LOGGING TIER POLICY
+# =============================================================================
+# Vector and OpenSearch cluster
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-logging-tier-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      tier: logging
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          tier: logging
+  egress:
+  # Allow intra-tier communication (Vector to OpenSearch, OpenSearch cluster)
+  - to:
+    - podSelector:
+        matchLabels:
+          tier: logging
+    ports:
+    - protocol: TCP
+      port: 9200    # OpenSearch HTTP API
+    - protocol: TCP
+      port: 9300    # OpenSearch cluster transport
+
+---
+# =============================================================================
+# 9. DNS EGRESS POLICY
+# =============================================================================
+# All pods can resolve DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-dns-egress-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector: {}  # Apply to all pods in namespace
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS resolution
+  - to: []
+    ports:
+    - protocol: UDP
+      port: 53
+    - protocol: TCP
+      port: 53
+
+---
+# =============================================================================
+# 10. SMTP EGRESS POLICY
+# =============================================================================
+# Services that send email notifications
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-smtp-egress-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app
+      operator: In
+      values:
+      - reportingm8
+      - dashboardm8
+      - socketm8
+  policyTypes:
+  - Egress
+  egress:
+  # Allow SMTP/SMTPS for email notifications
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 25      # SMTP
+    - protocol: TCP
+      port: 587     # SMTP submission (STARTTLS)
+    - protocol: TCP
+      port: 465     # SMTPS (implicit TLS)
+{{- end }}

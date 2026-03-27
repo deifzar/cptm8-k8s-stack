@@ -1,0 +1,594 @@
+{{/*
+=============================================================================
+SCANNER CONFIGURATION TEMPLATES
+=============================================================================
+Per-service YAML configuration templates for Go-based microservices.
+These templates are processed by envsubst at container startup to inject
+environment variables (database credentials, service URLs, etc.)
+*/}}
+{{- $namespace := include "cptm8.namespace" . -}}
+{{- $env := .Values.global.environment -}}
+{{- $appEnv := ternary "DEV" "PROD" (eq $env "dev") -}}
+{{- $logLevel := ternary "0" "2" (eq $env "dev") -}}
+
+---
+# =============================================================================
+# ASMM8 - DNS/Subdomain Discovery Service
+# =============================================================================
+{{- if .Values.scanners.asmm8.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-asmm8
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    app: asmm8
+data:
+  configuration_template.yaml: |
+    APP_ENV: {{ $appEnv }}
+    LOG_LEVEL: "{{ $logLevel }}"
+    ORCHESTRATORM8:
+      Services:
+        asmm8: "${ASMM8_URL}"
+        naabum8: "${NAABUM8_URL}"
+      Exchanges:
+        cptm8: "topic"
+        notification: "topic"
+      asmm8:
+        Queue:
+          - "cptm8"
+          - "qasmm8"
+          - 1
+        Routing-keys:
+          - "cptm8.asmm8.#"
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qasmm8"
+          - "casmm8"
+          - "false"
+        Publisher:
+          - "cptm8"
+          - "cptm8.naabum8.get.scan"
+          - "asmm8"
+    ASMM8:
+      runType: fast
+      activeWordList: "wordlist/subdomainslite.txt"
+      activeThreads: 100
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        retry_attempts: 10
+        retry_delay: 5
+  subfinderconfig.yaml: |
+    # subfinder config file - minimal configuration
+    # See projectdiscovery/subfinder for full options
+  subfinderprovider-config.yaml: |
+    bevigil: []
+    binaryedge: []
+    bufferover: []
+    builtwith: []
+    c99: []
+    censys: []
+    certspotter: []
+    chaos: []
+    chinaz: []
+    dnsdb: []
+    dnsrepo: []
+    facebook: []
+    fofa: []
+    fullhunt: []
+    github: []
+    hunter: []
+    intelx: []
+    leakix: []
+    netlas: []
+    passivetotal: []
+    quake: []
+    redhuntlabs: []
+    robtex: []
+    securitytrails: []
+    shodan: []
+    threatbook: []
+    virustotal: []
+    whoisxmlapi: []
+    zoomeyeapi: []
+{{- end }}
+
+---
+# =============================================================================
+# NAABUM8 - Port Scanning Service
+# =============================================================================
+{{- if .Values.scanners.naabum8.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-naabum8
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    app: naabum8
+data:
+  configuration_template.yaml: |
+    APP_ENV: {{ $appEnv }}
+    LOG_LEVEL: "{{ $logLevel }}"
+    ORCHESTRATORM8:
+      Services:
+        naabum8: "${NAABUM8_URL}"
+        katanam8: "${KATANAM8_URL}"
+      Exchanges:
+        cptm8: "topic"
+        notification: "topic"
+      naabum8:
+        Queue:
+          - "cptm8"
+          - "qnaabum8"
+          - 1
+        Routing-keys:
+          - "cptm8.naabum8.#"
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qnaabum8"
+          - "cnaabum8"
+          - "false"
+        Publisher:
+          - "cptm8"
+          - "cptm8.katanam8.get.scan"
+          - "naabum8"
+    NAABUM8:
+      Verbose: false
+      NoColor: true
+      JSON: true
+      ExcludeCDN: true
+      Retries: 1
+      Rate: 1000
+      Timeout: 1000
+      WarmUpTime: 2
+      Ports: "21,23,22,80,443,8080,8443"
+      Threads: 25
+      ScanAllIPS: false
+      IPVersion:
+        - 4
+      ScanType: s
+      NmapCLI: 'nmap -sV -oX ./tmp/nmap-output.xml'
+      DisableUpdateCheck: false
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        retry_attempts: 10
+        retry_delay: 5
+{{- end }}
+
+---
+# =============================================================================
+# KATANAM8 - Web Crawling Service
+# =============================================================================
+{{- if .Values.scanners.katanam8.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-katanam8
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    app: katanam8
+data:
+  configuration_template.yaml: |
+    APP_ENV: {{ $appEnv }}
+    LOG_LEVEL: "{{ $logLevel }}"
+    ORCHESTRATORM8:
+      Services:
+        katanam8: "${KATANAM8_URL}"
+        num8: "${NUM8_URL}"
+      Exchanges:
+        cptm8: "topic"
+        notification: "topic"
+      katanam8:
+        Queue:
+          - "cptm8"
+          - "qkatanam8"
+          - 1
+        Routing-keys:
+          - "cptm8.katanam8.#"
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qkatanam8"
+          - "ckatanam8"
+          - "false"
+        Publisher:
+          - "cptm8"
+          - "cptm8.num8.get.scan"
+          - "katanam8"
+    KATANAM8:
+      BurpAPILocation: http://127.0.0.1:8090
+      BurpProxyLocation: http://127.0.0.1:8080
+      DisplayOutScope: false
+      ExtensionFilter:
+        - css
+        - jpg
+        - jpeg
+        - png
+        - gif
+        - bmp
+        - ico
+        - svg
+        - tif
+        - tiff
+        - webp
+        - mp4
+        - avi
+        - pdf
+        - woff
+        - woff2
+      OutputFilterCondition: status_code == 301 || status_code == 302 || status_code == 304 || status_code == 307 || status_code == 400 || status_code == 404 || status_code == 415 || status_code == 500 || status_code == 502
+      MaxDepth: 10
+      Timeout: 15
+      Delay: 1
+      RateLimit: 150
+      Retries: 2
+      Concurrency: 10
+      Parallelism: 10
+      Strategy: depth-first
+      FieldScope: fqdn
+      OutputFile: ./tmp/foo
+      KnownFiles: all
+      Fields: qurl
+      NoColors: true
+      JSON: true
+      Silent: true
+      Verbose: false
+      Version: false
+      ScrapeJSResponses: true
+      ScrapeJSLuiceResponses: true
+      CustomHeaders:
+        - 'User-Agent: Mozilla/5.0 (Macintosh; Intel Mac OS X 11_0_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
+      Headless: true
+      AutomaticFormFill: true
+      FormExtraction: false
+      UseInstalledChrome: true
+      ShowBrowser: false
+      HeadlessNoSandbox: false
+      SystemChromePath: "/usr/bin/chromium-browser"
+      StoreResponse: false
+      OmitRaw: false
+      OmitBody: true
+      HeadlessNoIncognito: false
+      XhrExtraction: true
+      DisableUpdateCheck: false
+      IgnoreQueryParams: false
+      DisableRedirects: false
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        retry_attempts: 10
+        retry_delay: 5
+{{- end }}
+
+---
+# =============================================================================
+# NUM8 - Nuclei Vulnerability Scanning Service
+# =============================================================================
+{{- if .Values.scanners.num8.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-num8
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    app: num8
+data:
+  configuration_template.yaml: |
+    APP_ENV: {{ $appEnv }}
+    LOG_LEVEL: "{{ $logLevel }}"
+    ORCHESTRATORM8:
+      Services:
+        num8: "${NUM8_URL}"
+        asmm8: "${ASMM8_URL}"
+      Exchanges:
+        cptm8: "topic"
+        notification: "topic"
+      num8:
+        Queue:
+          - "cptm8"
+          - "qnum8"
+          - 1
+        Routing-keys:
+          - "cptm8.num8.#"
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qnum8"
+          - "cnum8"
+          - "false"
+          - "apicall"
+        Publisher:
+          - "cptm8"
+          - "cptm8.asmm8.get.scan"
+          - "num8"
+    NUM8:
+      BurpAPILocation: http://127.0.0.1:8090
+      BurpProxyLocation: http://127.0.0.1:8080
+      Sitemap:
+        Filter:
+          StatusCode:
+            - "301"
+            - "302"
+            - "304"
+            - "307"
+            - "400"
+            - "404"
+            - "415"
+            - "500"
+            - "502"
+          ContentType:
+            - "Content-Type: image/x-icon"
+            - "Content-Type: image/bmp"
+            - "Content-Type: image/gif"
+            - "Content-Type: image/vnd.microsoft.icon"
+            - "Content-Type: image/jpeg"
+            - "Content-Type: image/png"
+            - "Content-Type: image/svg+xml"
+            - "Content-Type: image/tiff"
+            - "Content-Type: image/webp"
+            - "Content-Type: video/mp4"
+            - "Content-Type: text/css"
+            - "Content-Type: application/x-javascript"
+            - "Content-Type: text/javascript"
+            - "Content-Type: application/javascript"
+            - "Content-Type: application/pdf"
+            - "Content-Type: application/x-font-woff"
+            - "Content-Type: application/x-font-woff2"
+            - "Content-Type: application/font-woff"
+            - "Content-Type: font/woff"
+            - "Content-Type: font/woff2"
+      t:
+        - /app/nuclei-templates
+      turl:
+        - https://cloud.projectdiscovery.io/public/
+      trustedDomains:
+        - 127.0.0.1:8000
+        - cloud.projectdiscovery.io
+        - cptm8.net
+      templateSources:
+        - http://127.0.0.1:8000/
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        retry_attempts: 10
+        retry_delay: 5
+{{- end }}
+
+---
+# =============================================================================
+# ORCHESTRATORM8 - Task Orchestration Service
+# =============================================================================
+{{- if .Values.scanners.orchestratorm8.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-orchestratorm8
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    app: orchestratorm8
+data:
+  configuration_template.yaml: |
+    APP_ENV: {{ $appEnv }}
+    LOG_LEVEL: "{{ $logLevel }}"
+    ORCHESTRATORM8:
+      Services:
+        asmm8: "${ASMM8_URL}"
+        naabum8: "${NAABUM8_URL}"
+        katanam8: "${KATANAM8_URL}"
+        num8: "${NUM8_URL}"
+      Exchanges:
+        cptm8: "topic"
+        scheduler: "topic"
+        notification: "topic"
+      asmm8:
+        Queue:
+          - "cptm8"
+          - "qasmm8"
+          - 1
+        Routing-keys:
+          - "cptm8.asmm8.#"
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qasmm8"
+          - "casmm8"
+          - "false"
+      naabum8:
+        Queue:
+          - cptm8
+          - qnaabum8
+          - 1
+        Routing-keys:
+          - cptm8.naabum8.#
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qnaabum8"
+          - "cnaabum8"
+          - "false"
+      katanam8:
+        Queue:
+          - cptm8
+          - qkatanam8
+          - 1
+        Routing-keys:
+          - cptm8.katanam8.#
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qkatanam8"
+          - "ckatanam8"
+          - "false"
+      num8:
+        Queue:
+          - cptm8
+          - qnum8
+          - 1
+        Routing-keys:
+          - cptm8.qnum8.#
+        Queue-arguments:
+          "x-max-length": 1
+          "x-overflow": "reject-publish"
+        Consumer:
+          - "qnum8"
+          - "cnum8"
+          - "false"
+      reportingm8:
+        Queue:
+          - scheduler
+          - qreportingm8
+          - 1
+        Routing-keys:
+          - scheduler.qreportingm8.#
+        Queue-arguments:
+        Consumer:
+          - "qreportingm8"
+          - "creportingm8"
+          - "false"
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        retry_attempts: 10
+        retry_delay: 5
+{{- end }}
+
+---
+# =============================================================================
+# REPORTINGM8 - Report Generation Service
+# =============================================================================
+{{- if .Values.reporting.reportingm8.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: configuration-template-reportingm8
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    app: reportingm8
+data:
+  configuration_template.yaml: |
+    APP_ENV: {{ $appEnv }}
+    LOG_LEVEL: "{{ $logLevel }}"
+    ORCHESTRATORM8:
+      Services:
+        reportingm8: "${REPORTINGM8_URL}"
+      Exchanges:
+        scheduler: "topic"
+      reportingm8:
+        Queue:
+          - scheduler
+          - qreportingm8
+          - 1
+        Routing-keys:
+          - scheduler.qreportingm8.#
+        Queue-arguments:
+        Consumer:
+          - "qreportingm8"
+          - "creportingm8"
+          - "false"
+    REPORTINGM8:
+      Template:
+        emailsummary: "assets/tesserent/emailsummarytemplate/emailsummarytemplate.html"
+        emailnotificationreport: "assets/tesserent/emailnotificationreporttemplate/emailnotificationreporttemplate.html"
+        report: "assets/tesserent/reporttemplate/001_reporttemplate.html"
+        clientorganisation: "${COMPANY_NAME}"
+        dashboard: "${DASHBOARDM8_URL}"
+      SMTP:
+        server: "${SMTP_SERVER}"
+        port: "${SMTP_PORT}"
+        username: "${SMTP_USERNAME}"
+        password: "${SMTP_PASSWORD}"
+        emailsender: "${SMTP_EMAILSENDER}"
+      Schedule:
+        report: monthly
+        email: weekly
+      Timezone: "Australia/Sydney"
+    Cloud:
+      provider: ""
+      AWS:
+        region: "${AWS_BUCKET_REGION}"
+        key: "${AWS_KEY}"
+        secret: "${AWS_SECRET}"
+        bucket: "${AWS_BUCKET_NAME}"
+    Database:
+      location: "${POSTGRESQL_HOSTNAME}"
+      port: 5432
+      schema: "public"
+      database: "${POSTGRESQL_DB}"
+      username: "${POSTGRESQL_USERNAME}"
+      password: "${POSTGRESQL_PASSWORD}"
+    RabbitMQ:
+      location: "${RABBITMQ_HOSTNAME}"
+      port: 5672
+      username: "${RABBITMQ_USERNAME}"
+      password: "${RABBITMQ_PASSWORD}"
+      pool:
+        retry_attempts: 10
+        retry_delay: 5
+{{- end }}

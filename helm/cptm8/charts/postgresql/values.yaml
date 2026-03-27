@@ -1,0 +1,85 @@
+# PostgreSQL Subchart Default Values
+# These can be overridden from the parent chart's values.yaml
+
+# Enable/disable this subchart
+enabled: true
+
+# Name override
+nameOverride: ""
+fullnameOverride: "postgresqlm8"
+
+# Image configuration
+image:
+  repository: postgres
+  tag: "15-alpine"
+  pullPolicy: IfNotPresent
+
+# Replicas (StatefulSet)
+replicaCount: 1
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 5432
+
+# Headless service for StatefulSet
+headless:
+  enabled: true
+
+# Persistence configuration
+persistence:
+  enabled: true
+  storageClass: ""  # Empty = use default or global
+  size: 30Gi
+  accessModes:
+    - ReadWriteOnce
+
+# Resource limits
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+# Security context
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+      - ALL
+
+podSecurityContext:
+  fsGroup: 10001
+
+# Probes
+livenessProbe:
+  enabled: true
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  initialDelaySeconds: 15
+  periodSeconds: 5
+  timeoutSeconds: 3
+  successThreshold: 1
+  failureThreshold: 3
+
+# Init scripts ConfigMap name
+initScripts:
+  configMapName: postgresql-init-scripts
+
+# Environment variables reference
+env:
+  # ConfigMap references
+  configMapName: cptm8-config
+  # Secret references
+  secretName: postgresql-secrets

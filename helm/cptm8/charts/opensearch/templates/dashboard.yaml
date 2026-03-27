@@ -1,0 +1,65 @@
+{{- if .Values.enabled }}
+{{- if .Values.dashboard.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opensearch-dashboard
+  namespace: {{ include "opensearch.namespace" . }}
+  labels:
+    {{- include "opensearch.labels" . | nindent 4 }}
+    app: opensearch-dashboard
+    tier: frontend
+spec:
+  replicas: {{ .Values.dashboard.replicaCount }}
+  selector:
+    matchLabels:
+      app: opensearch-dashboard
+      environment: {{ include "opensearch.environment" . }}
+  template:
+    metadata:
+      labels:
+        app: opensearch-dashboard
+        environment: {{ include "opensearch.environment" . }}
+        tier: frontend
+    spec:
+      {{- if .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- end }}
+      containers:
+      - name: opensearch-dashboard
+        image: "{{ .Values.dashboard.image.repository }}:{{ .Values.dashboard.image.tag }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        - name: OPENSEARCH_HOSTS
+          value: '["{{ include "opensearch.serviceUrl" . }}"]'
+        {{- if .Values.dashboard.disableSecurityPlugin }}
+        - name: DISABLE_SECURITY_DASHBOARDS_PLUGIN
+          value: "true"
+        {{- end }}
+        ports:
+        - name: http
+          containerPort: {{ .Values.dashboard.port }}
+          protocol: TCP
+        resources:
+          {{- toYaml .Values.dashboard.resources | nindent 10 }}
+        livenessProbe:
+          httpGet:
+            path: /api/status
+            port: {{ .Values.dashboard.port }}
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /api/status
+            port: {{ .Values.dashboard.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+        {{- if .Values.securityContext }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}
+{{- end }}
+{{- end }}
