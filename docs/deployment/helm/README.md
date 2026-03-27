@@ -36,7 +36,7 @@ kind version
 kind create cluster --name cptm8-dev
 
 # 2. Deploy with Helm
-helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace
+helm install cptm8 helm -n cptm8-dev --create-namespace
 
 # 3. Access
 kubectl port-forward svc/dashboardm8-service 3000:3000 -n cptm8-dev
@@ -48,14 +48,14 @@ open http://localhost:3000
 ```bash
 # AWS EKS
 aws eks update-kubeconfig --name cptm8-staging-cluster --region eu-south-2
-helm install cptm8 helm/cptm8 -n cptm8-staging \
-  -f helm/cptm8/values-staging-aws.yaml \
+helm install cptm8 helm -n cptm8-staging \
+  -f helm/values-staging-aws.yaml \
   -f <(sops -d values-secrets.yaml)
 
 # Azure AKS
 az aks get-credentials --name cptm8-staging-aks --resource-group cptm8-staging-rg
-helm install cptm8 helm/cptm8 -n cptm8-staging \
-  -f helm/cptm8/values-staging-azure.yaml \
+helm install cptm8 helm -n cptm8-staging \
+  -f helm/values-staging-azure.yaml \
   -f <(sops -d values-secrets.yaml)
 ```
 
@@ -64,7 +64,7 @@ helm install cptm8 helm/cptm8 -n cptm8-staging \
 ## Chart Structure
 
 ```
-helm/cptm8/
+helm/
 ├── Chart.yaml                    # Chart metadata
 ├── values.yaml                   # Default values (dev)
 ├── values-staging-aws.yaml       # AWS EKS values
@@ -115,7 +115,7 @@ helm/cptm8/
 ### Upgrade
 
 ```bash
-helm upgrade cptm8 helm/cptm8 -n cptm8-dev --wait
+helm upgrade cptm8 helm -n cptm8-dev --wait
 ```
 
 ### Rollback
@@ -133,8 +133,8 @@ helm uninstall cptm8 -n cptm8-dev
 ### Debug
 
 ```bash
-helm template cptm8 helm/cptm8 --debug
-helm lint helm/cptm8 --strict
+helm template cptm8 helm --debug
+helm lint helm --strict
 ```
 
 ---

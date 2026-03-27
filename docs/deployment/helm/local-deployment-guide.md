@@ -68,7 +68,7 @@ nodes:
 EOF
 
 # 2. Deploy CPTM8 with Helm
-helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace
+helm install cptm8 helm -n cptm8-dev --create-namespace
 
 # 3. Wait for pods
 kubectl wait --for=condition=Ready pods --all -n cptm8-dev --timeout=300s
@@ -149,7 +149,7 @@ kind load docker-image cptm8/asmm8:dev-latest --name cptm8-dev
 ## Helm Chart Structure
 
 ```
-helm/cptm8/
+helm/
 ├── Chart.yaml              # Chart metadata
 ├── values.yaml             # Default values (dev environment)
 ├── values-staging-aws.yaml # AWS EKS staging values
@@ -271,18 +271,18 @@ networkPolicies:
 
 ```bash
 # Basic installation (uses default values.yaml)
-helm install cptm8 helm/cptm8 \
+helm install cptm8 helm \
   --namespace cptm8-dev \
   --create-namespace
 
 # With custom values file
-helm install cptm8 helm/cptm8 \
+helm install cptm8 helm \
   --namespace cptm8-dev \
   --create-namespace \
-  -f helm/cptm8/values-local.yaml
+  -f helm/values-local.yaml
 
 # With inline value overrides
-helm install cptm8 helm/cptm8 \
+helm install cptm8 helm \
   --namespace cptm8-dev \
   --create-namespace \
   --set global.environment=dev \
@@ -414,11 +414,11 @@ kubectl port-forward svc/opensearch-dashboards-service 5601:5601 -n cptm8-dev
 
 ```bash
 # Edit values and upgrade
-vim helm/cptm8/values.yaml
-helm upgrade cptm8 helm/cptm8 -n cptm8-dev
+vim helm/values.yaml
+helm upgrade cptm8 helm -n cptm8-dev
 
 # Or use --set for quick changes
-helm upgrade cptm8 helm/cptm8 -n cptm8-dev \
+helm upgrade cptm8 helm -n cptm8-dev \
   --set scanners.asmm8.replicaCount=2
 ```
 
@@ -436,14 +436,14 @@ kubectl rollout restart deploy -n cptm8-dev
 
 ```bash
 # Render all templates without installing
-helm template cptm8 helm/cptm8 -n cptm8-dev
+helm template cptm8 helm -n cptm8-dev
 
 # Render specific template
-helm template cptm8 helm/cptm8 -n cptm8-dev \
+helm template cptm8 helm -n cptm8-dev \
   --show-only templates/deployments/scanners.yaml
 
 # Render with custom values
-helm template cptm8 helm/cptm8 -n cptm8-dev \
+helm template cptm8 helm -n cptm8-dev \
   -f values-local.yaml \
   --show-only templates/configmaps/cptm8-config.yaml
 ```
@@ -452,13 +452,13 @@ helm template cptm8 helm/cptm8 -n cptm8-dev \
 
 ```bash
 # Dry-run with debug output
-helm install cptm8 helm/cptm8 -n cptm8-dev --dry-run --debug
+helm install cptm8 helm -n cptm8-dev --dry-run --debug
 
 # Lint the chart
-helm lint helm/cptm8
+helm lint helm
 
 # Validate against cluster
-helm template cptm8 helm/cptm8 | kubectl apply --dry-run=server -f -
+helm template cptm8 helm | kubectl apply --dry-run=server -f -
 ```
 
 ---
@@ -469,13 +469,13 @@ helm template cptm8 helm/cptm8 | kubectl apply --dry-run=server -f -
 
 ```bash
 # Upgrade with new values
-helm upgrade cptm8 helm/cptm8 -n cptm8-dev -f values-local.yaml
+helm upgrade cptm8 helm -n cptm8-dev -f values-local.yaml
 
 # Upgrade and wait for completion
-helm upgrade cptm8 helm/cptm8 -n cptm8-dev --wait --timeout 5m
+helm upgrade cptm8 helm -n cptm8-dev --wait --timeout 5m
 
 # Upgrade with atomic (auto-rollback on failure)
-helm upgrade cptm8 helm/cptm8 -n cptm8-dev --atomic --timeout 5m
+helm upgrade cptm8 helm -n cptm8-dev --atomic --timeout 5m
 ```
 
 ### View Release History
