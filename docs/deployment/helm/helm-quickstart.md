@@ -7,8 +7,12 @@ Quick command reference for common Helm operations.
 ## Installation
 
 ```bash
-# Development (local Kind)
+# Development (local Kind) - NodePort mode (default)
 helm install cptm8 helm -n cptm8-dev --create-namespace
+
+# Development (local Kind) - Ingress mode
+helm install cptm8 helm -n cptm8-dev --create-namespace \
+  -f helm/values-dev-ingress.yaml
 
 # Staging AWS
 helm install cptm8 helm -n cptm8-staging \

@@ -81,6 +81,67 @@ open http://localhost:15672     # RabbitMQ Management
 
 ---
 
+## Alternative: Ingress-Based Deployment
+
+If you prefer using Ingress instead of NodePort (more similar to production):
+
+```bash
+# 1. Create Kind cluster with Ingress port mappings
+cat <<EOF | kind create cluster --name cptm8-dev --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+- role: control-plane
+  extraPortMappings:
+  - containerPort: 80
+    hostPort: 80
+    protocol: TCP
+  - containerPort: 443
+    hostPort: 443
+    protocol: TCP
+  kubeadmConfigPatches:
+  - |
+    kind: InitConfiguration
+    nodeRegistration:
+      kubeletExtraArgs:
+        node-labels: "ingress-ready=true"
+EOF
+
+# 2. Install NGINX Ingress Controller for Kind
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl wait --namespace ingress-nginx \
+  --for=condition=ready pod \
+  --selector=app.kubernetes.io/component=controller \
+  --timeout=90s
+
+# 3. Add hosts to /etc/hosts
+echo "127.0.0.1 dashboard.cptm8.local socket.cptm8.local rabbitmq.cptm8.local" | sudo tee -a /etc/hosts
+
+# 4. Deploy CPTM8 with Ingress values
+helm install cptm8 helm -n cptm8-dev --create-namespace \
+  -f helm/values-dev-ingress.yaml
+
+# 5. Wait for pods
+kubectl wait --for=condition=Ready pods --all -n cptm8-dev --timeout=300s
+
+# 6. Access applications
+open http://dashboard.cptm8.local   # Dashboard
+open http://socket.cptm8.local      # Socket.io
+open http://rabbitmq.cptm8.local    # RabbitMQ Management
+```
+
+### NodePort vs Ingress Comparison
+
+| Feature | NodePort (Default) | Ingress |
+|---------|-------------------|---------|
+| Setup complexity | Simple | Requires Ingress Controller |
+| URL format | `localhost:3000` | `dashboard.cptm8.local` |
+| Production similarity | Low | High |
+| Multiple services | Different ports | Different hostnames |
+| /etc/hosts required | No | Yes |
+
+---
+
 ## Kind Cluster Setup
 
 ### Create Kind Configuration

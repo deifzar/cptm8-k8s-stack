@@ -4,6 +4,18 @@ Complete reference for all configurable values in the CPTM8 Helm chart.
 
 ---
 
+## Available Values Files
+
+| File | Environment | Description |
+|------|-------------|-------------|
+| `values.yaml` | Development | Default values, NodePort access |
+| `values-dev-ingress.yaml` | Development | Ingress-based local development |
+| `values-staging-aws.yaml` | Staging (AWS) | AWS EKS with ALB Ingress |
+| `values-staging-azure.yaml` | Staging (Azure) | Azure AKS with NGINX + cert-manager |
+| `values-secrets-*.yaml.example` | All | Example secrets templates |
+
+---
+
 ## Table of Contents
 
 1. [Global Configuration](#global-configuration)
