@@ -541,11 +541,11 @@ cronjobs:
   ecrTokenRefresher:
     enabled: true
     schedule: "0 */8 * * *"
-    image: amazon/aws-cli:latest
+    image: amazon/aws-cli:2.34.10
   acrTokenRefresher:
     enabled: false
     schedule: "0 */8 * * *"
-    image: mcr.microsoft.com/azure-cli:latest
+    image: mcr.microsoft.com/azure-cli:2.9.0
 
 # =============================================================================
 # SECRETS CONFIGURATION
