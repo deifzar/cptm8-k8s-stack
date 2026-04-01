@@ -119,7 +119,8 @@ echo "127.0.0.1 dashboard.cptm8.local socket.cptm8.local rabbitmq.cptm8.local" |
 
 # 4. Deploy CPTM8 with Ingress values
 helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace \
-  -f helm/cptm8/values-dev-ingress.yaml
+  -f helm/cptm8/values-dev-ingress.yaml \
+  -f helm/cptm8/values-secrets-dev.yaml
 
 # 5. Wait for pods
 kubectl wait --for=condition=Ready pods --all -n cptm8-dev --timeout=300s
@@ -252,6 +253,11 @@ global:
   imageRegistry: ""          # Empty for local, ECR/ACR for cloud
   imageTag: dev-latest
   imagePullPolicy: IfNotPresent
+  # Storage classes - single source of truth for all components
+  storage:
+    primaryClass: cptm8-dev-ssd-retain  # Critical data (databases)
+    deleteClass: cptm8-dev-ssd-delete   # Recreatable data
+    logsClass: cptm8-dev-log-shared     # Shared log volumes
 
 # Namespace
 namespace:
@@ -581,7 +587,12 @@ kubectl get sc
 kubectl describe pod <pod-name> -n cptm8-dev
 ```
 
-**Solution**: Ensure StorageClass provisioner is available. For Kind, the default `rancher.io/local-path` should work.
+**Solution**: Ensure StorageClass provisioner is available. For Kind, the chart creates three StorageClasses using `rancher.io/local-path`:
+- `cptm8-dev-ssd-retain` - For critical database data
+- `cptm8-dev-ssd-delete` - For non-critical data
+- `cptm8-dev-log-shared` - For shared log volumes
+
+Verify with: `kubectl get sc | grep cptm8`
 
 #### Pods in CrashLoopBackOff
 

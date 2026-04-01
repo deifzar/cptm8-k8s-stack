@@ -46,8 +46,29 @@ Complete reference for all configurable values in the CPTM8 Helm chart.
 | `global.imagePullPolicy` | Image pull policy | `IfNotPresent` |
 | `global.imagePullSecrets` | Image pull secrets array | `[{name: ecr-registry-secret}]` |
 | `global.initImage` | Init container image | `busybox:1.35` |
-| `global.storageClass` | Default StorageClass | `cptm8-dev-ssd` |
-| `global.logsStorageClass` | Logs StorageClass | `cptm8-dev-logs-shared` |
+
+### Storage Configuration
+
+The `global.storage` section provides a unified configuration for all StorageClass references. This is the single source of truth for storage class names used by all subcharts and templates.
+
+| Parameter | Description | Default (Dev) |
+|-----------|-------------|---------------|
+| `global.storage.primaryClass` | Primary StorageClass for critical data (databases). Uses Retain policy. | `cptm8-dev-ssd-retain` |
+| `global.storage.deleteClass` | StorageClass for non-critical/recreatable data. Uses Delete policy. | `cptm8-dev-ssd-delete` |
+| `global.storage.logsClass` | StorageClass for shared log volumes (ReadWriteMany). | `cptm8-dev-log-shared` |
+
+**Environment-Specific Storage Classes:**
+
+| Environment | primaryClass | deleteClass | logsClass |
+|-------------|--------------|-------------|-----------|
+| Dev (Kind) | `cptm8-dev-ssd-retain` | `cptm8-dev-ssd-delete` | `cptm8-dev-log-shared` |
+| Staging (AWS) | `cptm8-staging-ebs-gp3` | `cptm8-staging-ebs-gp3` | `cptm8-staging-ebs-gp3` |
+| Staging (Azure) | `cptm8-staging-azure-premium` | `cptm8-staging-azure-standard` | `cptm8-staging-azure-files` |
+
+**Usage by Component:**
+- **PostgreSQL, MongoDB, RabbitMQ, OpenSearch**: Use `primaryClass` for critical persistent data
+- **MongoDB config volumes**: Use `deleteClass` (non-critical, can be recreated)
+- **Scanner log PVCs**: Use `logsClass` for shared log volumes
 
 ### Security Context
 
@@ -170,41 +191,73 @@ Configuration values used in ConfigMaps.
 
 ## Storage
 
-### Retain StorageClass
+Storage configuration consists of two parts:
+1. **StorageClass Creation**: Defines the StorageClass resources themselves (provisioner, reclaim policy, etc.)
+2. **StorageClass References**: Uses `global.storage.*` to specify which StorageClass each component should use (see [Storage Configuration](#storage-configuration) above)
+
+> **Important**: The StorageClass names created by the templates must match the names referenced in `global.storage.*`. When deploying to a new environment, ensure both are aligned.
+
+### Local Development StorageClasses (Kind)
+
+#### Retain StorageClass
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `storage.retainStorageClass.create` | Create StorageClass | `true` |
+| `storage.retainStorageClass.name` | StorageClass name | `cptm8-dev-ssd-retain` |
 | `storage.retainStorageClass.provisioner` | Provisioner | `rancher.io/local-path` |
 | `storage.retainStorageClass.reclaimPolicy` | Reclaim policy | `Retain` |
 
-### Delete StorageClass
+#### Delete StorageClass
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `storage.deleteStorageClass.create` | Create StorageClass | `true` |
+| `storage.deleteStorageClass.name` | StorageClass name | `cptm8-dev-ssd-delete` |
 | `storage.deleteStorageClass.provisioner` | Provisioner | `rancher.io/local-path` |
 | `storage.deleteStorageClass.reclaimPolicy` | Reclaim policy | `Delete` |
 
-### AWS EBS StorageClass
+### AWS EBS StorageClass (EKS)
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `storage.awsEBSStorageClass.create` | Create StorageClass | `true` |
+| `storage.awsEBSStorageClass.name` | StorageClass name | `cptm8-staging-ebs-gp3` |
 | `storage.awsEBSStorageClass.provisioner` | Provisioner | `ebs.csi.aws.com` |
 | `storage.awsEBSStorageClass.parameters.type` | EBS type | `gp3` |
 | `storage.awsEBSStorageClass.parameters.encrypted` | Encryption enabled | `true` |
 | `storage.awsEBSStorageClass.parameters.iops` | IOPS | `3000` |
 | `storage.awsEBSStorageClass.parameters.throughput` | Throughput MB/s | `125` |
 
-### Azure Disk StorageClass
+### Azure Disk StorageClasses (AKS)
+
+#### Premium StorageClass
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
 | `storage.azureDiskPremiumStorageClass.create` | Create StorageClass | `true` |
+| `storage.azureDiskPremiumStorageClass.name` | StorageClass name | `cptm8-staging-azure-premium` |
 | `storage.azureDiskPremiumStorageClass.provisioner` | Provisioner | `disk.csi.azure.com` |
 | `storage.azureDiskPremiumStorageClass.parameters.skuName` | SKU | `Premium_LRS` |
 | `storage.azureDiskPremiumStorageClass.parameters.enableBursting` | Enable bursting | `true` |
+
+#### Standard StorageClass
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `storage.azureDiskStandardStorageClass.create` | Create StorageClass | `true` |
+| `storage.azureDiskStandardStorageClass.name` | StorageClass name | `cptm8-staging-azure-standard` |
+| `storage.azureDiskStandardStorageClass.provisioner` | Provisioner | `disk.csi.azure.com` |
+| `storage.azureDiskStandardStorageClass.parameters.skuName` | SKU | `StandardSSD_LRS` |
+
+#### Azure Files StorageClass (ReadWriteMany)
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `storage.azureFilesStorageClass.create` | Create StorageClass | `true` |
+| `storage.azureFilesStorageClass.name` | StorageClass name | `cptm8-staging-azure-files` |
+| `storage.azureFilesStorageClass.provisioner` | Provisioner | `file.csi.azure.com` |
+| `storage.azureFilesStorageClass.parameters.skuName` | SKU | `Standard_LRS` |
 
 ---
 
@@ -288,7 +341,7 @@ Each scanner (asmm8, naabum8, katanam8, num8, orchestratorm8) supports:
 | `postgresql.image.tag` | Image tag | `15-alpine` |
 | `postgresql.persistence.enabled` | Enable persistence | `true` |
 | `postgresql.persistence.size` | PVC size | `30Gi` |
-| `postgresql.persistence.storageClass` | StorageClass | `""` (uses global) |
+| `postgresql.persistence.storageClass` | StorageClass override | `""` (uses `global.storage.primaryClass`) |
 
 ### MongoDB
 
@@ -299,7 +352,9 @@ Each scanner (asmm8, naabum8, katanam8, num8, orchestratorm8) supports:
 | `mongodb.image.tag` | Image tag | `7.0` |
 | `mongodb.replicaSet.name` | Replica set name | `rs0` |
 | `mongodb.persistence.dataSize` | Data PVC size | `20Gi` |
+| `mongodb.persistence.storageClass` | Data StorageClass override | `""` (uses `global.storage.primaryClass`) |
 | `mongodb.persistence.configSize` | Config PVC size | `1Gi` |
+| `mongodb.persistence.storageClassDelete` | Config StorageClass override | `""` (uses `global.storage.deleteClass`) |
 | `mongodb.initJob.enabled` | Enable init job | `true` |
 | `mongodb.initJob.ttlSecondsAfterFinished` | Job TTL | `3600` |
 
@@ -312,6 +367,7 @@ Each scanner (asmm8, naabum8, katanam8, num8, orchestratorm8) supports:
 | `rabbitmq.image.tag` | Image tag | `3.12-management-alpine` |
 | `rabbitmq.persistence.enabled` | Enable persistence | `true` |
 | `rabbitmq.persistence.size` | PVC size | `10Gi` |
+| `rabbitmq.persistence.storageClass` | StorageClass override | `""` (uses `global.storage.primaryClass`) |
 
 ### OpenSearch
 
@@ -323,6 +379,7 @@ Each scanner (asmm8, naabum8, katanam8, num8, orchestratorm8) supports:
 | `opensearch.nodeCount` | Node count | `2` |
 | `opensearch.persistence.enabled` | Enable persistence | `true` |
 | `opensearch.persistence.size` | PVC size per node | `10Gi` |
+| `opensearch.persistence.storageClass` | StorageClass override | `""` (uses `global.storage.primaryClass`) |
 | `opensearch.javaOpts` | JVM options | `-Xms512m -Xmx512m` |
 | `opensearch.disableSecurity` | Disable security plugin | `true` |
 | `opensearch.dashboard.enabled` | Enable Dashboards | `true` |
