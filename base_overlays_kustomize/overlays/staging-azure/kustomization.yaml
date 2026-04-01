@@ -101,30 +101,30 @@ replicas:
 # Image tags for Azure staging (Azure Container Registry)
 # Update <your-acr-name> with your actual ACR name
 images:
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/dashboardm8
-    newName: cptm8acr.azurecr.io/cptm8/dashboardm8
-    newTag: staging-0.1
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/socketm8
-    newName: cptm8acr.azurecr.io/cptm8/socketm8
-    newTag: staging-0.1
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/asmm8
-    newName: cptm8acr.azurecr.io/cptm8/asmm8
-    newTag: staging-0.1
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/naabum8
-    newName: cptm8acr.azurecr.io/cptm8/naabum8
-    newTag: staging-0.1
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/katanam8
-    newName: cptm8acr.azurecr.io/cptm8/katanam8
-    newTag: staging-0.1
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/num8
-    newName: cptm8acr.azurecr.io/cptm8/num8
-    newTag: staging-0.1
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/orchestratorm8
-    newName: cptm8acr.azurecr.io/cptm8/orchestratorm8
-    newTag: staging-0.1
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/reportingm8
-    newName: cptm8acr.azurecr.io/cptm8/reportingm8
-    newTag: staging-0.1
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/dashboardm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/dashboardm8
+    newTag: "0.8"
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/socketm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/socketm8
+    newTag: "0.8"
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/asmm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/asmm8
+    newTag: "0.8"
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/naabum8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/naabum8
+    newTag: "0.8"
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/katanam8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/katanam8
+    newTag: "0.8"
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/num8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/num8
+    newTag: "0.8"
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/orchestratorm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/orchestratorm8
+    newTag: "0.8"
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/reportingm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-staging/reportingm8
+    newTag: "0.8"
 
 # Strategic merge patches
 patches:

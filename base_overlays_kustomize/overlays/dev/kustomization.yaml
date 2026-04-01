@@ -99,22 +99,30 @@ replicas:
 
 # Image tags for dev
 images:
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/dashboardm8
-    newTag: dev-latest
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/socketm8
-    newTag: dev-latest
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/asmm8
-    newTag: dev-latest
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/naabum8
-    newTag: dev-latest
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/katanam8
-    newTag: dev-latest
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/num8
-    newTag: dev-latest
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/orchestratorm8
-    newTag: dev-latest
-  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/reportingm8
-    newTag: dev-latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/dashboardm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/dashboardm8
+    newTag: latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/socketm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/socketm8
+    newTag: latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/asmm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/asmm8
+    newTag: latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/naabum8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/naabum8
+    newTag: latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/katanam8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/katanam8
+    newTag: latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/num8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/num8
+    newTag: latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/orchestratorm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/orchestratorm8
+    newTag: latest
+  - name: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/{namespace}/reportingm8
+    newName: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/reportingm8
+    newTag: latest
 
 # Strategic merge patches
 patches:
