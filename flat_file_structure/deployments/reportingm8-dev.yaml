@@ -62,7 +62,7 @@ spec:
           runAsUser: 0
       containers:
       - name: reportingm8
-        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/reportingm8:dev-latest
+        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/reportingm8:latest
         env:
         - name: SERVICEM8_NAME
           value: "reportingm8"

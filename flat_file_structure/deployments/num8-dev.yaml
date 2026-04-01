@@ -63,7 +63,7 @@ spec:
           runAsUser: 0  # Run as root to change ownership
       containers:
       - name: num8
-        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/asmm8:dev-latest
+        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/num8:latest
         env:
         - name: SERVICEM8_NAME
           value: "num8"

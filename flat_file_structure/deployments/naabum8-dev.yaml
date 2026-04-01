@@ -62,7 +62,7 @@ spec:
           runAsUser: 0
       containers:
       - name: naabum8
-        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/naabum8:dev-latest
+        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/naabum8:latest
         env:
         - name: SERVICEM8_NAME
           value: "naabum8"

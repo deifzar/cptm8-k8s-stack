@@ -27,7 +27,7 @@ spec:
       - name: ecr-registry-secret
       containers:
         - name: dashboardm8
-          image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/dashboardm8:dev-latest
+          image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/dashboardm8:latest
           env:
           - name: NODE_ENV
             valueFrom:

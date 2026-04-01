@@ -62,7 +62,7 @@ spec:
           runAsUser: 0
       containers:
       - name: katanam8
-        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8/katanam8:dev-latest
+        image: 507745009364.dkr.ecr.eu-south-2.amazonaws.com/cptm8-dev/katanam8:latest
         env:
         - name: SERVICEM8_NAME
           value: "katanam8"
