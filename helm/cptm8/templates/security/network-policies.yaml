@@ -4,16 +4,17 @@ NETWORK POLICIES
 =============================================================================
 Network segmentation for CPTM8 platform:
 
-1. Default Deny All      - Block all traffic by default
-2. Frontend Policy       - Dashboard/Socket to backend/databases
-3. OpenSearch Dashboard  - Dashboard to logging tier
-4. Database Tier Policy  - Databases receive from application tier
-5. Messaging Tier Policy - RabbitMQ to/from scanners and frontend
-6. Reporting Tier Policy - Reporting to databases, messaging, external APIs
-7. Scanner Tier Policy   - Scanners to databases, messaging, external targets
-8. Logging Tier Policy   - Vector to OpenSearch cluster communication
-9. DNS Egress Policy     - All pods can resolve DNS
-10. SMTP Egress Policy   - Email-sending services can reach SMTP servers
+1. Default Deny All        - Block all traffic by default
+2. Frontend Policy         - Dashboard/Socket to backend/databases
+3. OpenSearch Dashboard    - Dashboard to logging tier
+4. Database Tier Policy    - Databases receive from application tier
+5. Messaging Tier Policy   - RabbitMQ to/from scanners and frontend
+6. Reporting Tier Policy   - Reporting to databases, messaging, external APIs
+7. Scanner Tier Policy     - Scanners to databases, messaging, external targets
+8. Logging Tier Policy     - Vector to OpenSearch cluster communication
+9. DNS Egress Policy       - All pods can resolve DNS
+10. Registry Job Policy    - ECR/ACR token refresher jobs to external APIs
+11. SMTP Egress Policy     - Email-sending services can reach SMTP servers
 
 Security notes:
   - Scanners need unrestricted external egress for scanning targets
@@ -216,6 +217,16 @@ spec:
     - podSelector:
         matchLabels:
           app: socketm8
+  # RabbitMQ receives from reportingm8 (job notifications)
+  - from:
+    - podSelector:
+        matchLabels:
+          component: reporting
+  # RabbitMQ receives from orchestratorm8 (task orchestration)
+  - from:
+    - podSelector:
+        matchLabels:
+          app: orchestratorm8
 
 ---
 # =============================================================================
@@ -402,7 +413,41 @@ spec:
 
 ---
 # =============================================================================
-# 10. SMTP EGRESS POLICY
+# 10. REGISTRY TOKEN REFRESHER POLICY
+# =============================================================================
+# ECR/ACR token refresher jobs need external access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $environment }}-registry-job-policy
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    component: security
+spec:
+  podSelector:
+    matchLabels:
+      tier: job
+      component: registry
+  policyTypes:
+  - Egress
+  egress:
+  # Allow HTTPS for AWS ECR/Azure ACR APIs and kubectl download
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow to Kubernetes API server (for creating secrets)
+  - to: []
+    ports:
+    - protocol: TCP
+      port: 6443
+    - protocol: TCP
+      port: 443
+
+---
+# =============================================================================
+# 11. SMTP EGRESS POLICY
 # =============================================================================
 # Services that send email notifications
 apiVersion: networking.k8s.io/v1
