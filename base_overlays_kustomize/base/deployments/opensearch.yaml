@@ -55,7 +55,7 @@ spec:
         volumeMounts:
         - name: opensearch-data1
           mountPath: /usr/share/opensearch/data
-        - name: opensearch-config
+        - name: opensearch-config-internal-users
           mountPath: /usr/share/opensearch/config/opensearch-security/internal_users.yml
           subPath: internal_users.yml
           readOnly: true
@@ -83,10 +83,13 @@ spec:
             drop:
             - ALL
       volumes:
-      - name: opensearch-config
+      - name: opensearch-config-internal-users
         configMap:
           name: opensearch-config
           defaultMode: 0644
+          items:
+            - key: internal_users.yml
+              path: internal_users.yml
       securityContext:
         fsGroup: 1000
       initContainers:
@@ -158,7 +161,7 @@ spec:
         volumeMounts:
         - name: opensearch-data2
           mountPath: /usr/share/opensearch/data
-        - name: opensearch-config
+        - name: opensearch-config-internal-users
           mountPath: /usr/share/opensearch/config/opensearch-security/internal_users.yml
           subPath: internal_users.yml
           readOnly: true
@@ -186,10 +189,13 @@ spec:
             drop:
             - ALL
       volumes:
-      - name: opensearch-config
+      - name: opensearch-config-internal-users
         configMap:
           name: opensearch-config
           defaultMode: 0644
+          items:
+            - key: internal_users.yml
+              path: internal_users.yml
       securityContext:
         fsGroup: 1000
       initContainers:
