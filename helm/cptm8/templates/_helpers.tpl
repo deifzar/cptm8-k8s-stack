@@ -357,8 +357,8 @@ Get image tag - uses service-specific or falls back to global
 
 {{/*
 Full image reference
-Usage: {{ include "cptm8.image" (dict "registry" .Values.global.imageRegistry "name" "asmm8" "tag" $tag) }}
+Usage: {{ include "cptm8.image" (dict "registry" .Values.global.imageRegistry "name" "asmm8" "tag" $tag "ctx" .) }}
 */}}
 {{- define "cptm8.image" -}}
-{{- printf "%s/cptm8/%s:%s" .registry .name .tag }}
+{{- printf "%s/%s/%s:%s" .registry (include "cptm8.namespace" .ctx) .name .tag }}
 {{- end }}

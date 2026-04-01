@@ -76,22 +76,16 @@ data:
           # Parse JSON if possible, otherwise keep as text
           . = parse_json(.message) ?? {"message": .message}
 
-          # Add service name based on source
-          {{- $first := true }}
+          # Add service name based on source file path
+          .service = "unknown"
           {{- range $name, $scanner := .Values.scanners }}
           {{- if $scanner.enabled }}
-          {{ if $first }}if{{ else }} else if{{ end }} contains(string!(.file), "{{ $name }}") {
-            .service = "{{ $name }}"
-          }
-          {{- $first = false }}
+          if contains(string!(.file), "{{ $name }}") { .service = "{{ $name }}" }
           {{- end }}
           {{- end }}
           {{- range $name, $reporting := .Values.reporting }}
           {{- if $reporting.enabled }}
-          {{ if $first }}if{{ else }} else if{{ end }} contains(string!(.file), "{{ $name }}") {
-            .service = "{{ $name }}"
-          }
-          {{- $first = false }}
+          if contains(string!(.file), "{{ $name }}") { .service = "{{ $name }}" }
           {{- end }}
           {{- end }}
 

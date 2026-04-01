@@ -50,12 +50,6 @@ metadata:
     nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
     nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
     nginx.ingress.kubernetes.io/websocket-services: "socketm8-service"
-    # Security headers
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      add_header X-Frame-Options "SAMEORIGIN" always;
-      add_header X-Content-Type-Options "nosniff" always;
-      add_header X-XSS-Protection "1; mode=block" always;
-      add_header Referrer-Policy "strict-origin-when-cross-origin" always;
     {{- if .Values.ingress.rateLimit.enabled }}
     # Rate limiting
     nginx.ingress.kubernetes.io/limit-rps: {{ .Values.ingress.rateLimit.rps | default "100" | quote }}

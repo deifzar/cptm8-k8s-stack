@@ -34,7 +34,7 @@
 #    echo "127.0.0.1 dashboard.cptm8.local socket.cptm8.local rabbitmq.cptm8.local" | sudo tee -a /etc/hosts
 #
 # 4. Deploy with this values file:
-#    helm install cptm8 helm -n cptm8-dev --create-namespace -f helm/values-dev-ingress.yaml
+#    helm install cptm8 helm/cptm8 -n cptm8-dev --create-namespace -f helm/cptm8/values-dev-ingress.yaml
 #
 # 5. Access services:
 #    - Dashboard: http://dashboard.cptm8.local
@@ -72,7 +72,7 @@ ingress:
   # Host configuration for local development
   hosts:
     # Dashboard (Next.js frontend)
-    - host: dashboard.cptm8.local
+    - host: dashboard-dev.cptm8.net
       paths:
         - path: /
           pathType: Prefix
@@ -80,7 +80,7 @@ ingress:
           servicePort: 3000
 
     # Socket.io (WebSocket server)
-    - host: socket.cptm8.local
+    - host: socket-dev.cptm8.net
       paths:
         - path: /
           pathType: Prefix

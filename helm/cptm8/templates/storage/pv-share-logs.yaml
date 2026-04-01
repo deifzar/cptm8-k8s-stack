@@ -4,7 +4,7 @@ Each Go scanner/reporting service gets a PV/PVC for logs
 */}}
 {{- $ctx := . -}}
 {{- $namespace := include "cptm8.namespace" . -}}
-{{- $storageClass := printf "%s-logs-shared" $namespace -}}
+{{- $storageClass := .Values.global.storage.logsClass -}}
 
 {{/*
 Process scanners from Values.scanners

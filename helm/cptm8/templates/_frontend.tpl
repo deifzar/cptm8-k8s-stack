@@ -46,7 +46,7 @@ spec:
 
       containers:
       - name: {{ $name }}
-        image: {{ include "cptm8.image" (dict "registry" $ctx.Values.global.imageRegistry "name" $name "tag" $tag) }}
+        image: {{ include "cptm8.image" (dict "registry" $ctx.Values.global.imageRegistry "name" $name "tag" $tag "ctx" $ctx) }}
         imagePullPolicy: {{ $ctx.Values.global.imagePullPolicy }}
 
         # Environment variables

@@ -71,7 +71,7 @@ spec:
 
       containers:
       - name: {{ $name }}
-        image: {{ include "cptm8.image" (dict "registry" $ctx.Values.global.imageRegistry "name" $name "tag" $tag) }}
+        image: {{ include "cptm8.image" (dict "registry" $ctx.Values.global.imageRegistry "name" $name "tag" $tag "ctx" $ctx) }}
         imagePullPolicy: {{ $ctx.Values.global.imagePullPolicy }}
 
         # Environment variables
@@ -240,34 +240,4 @@ Standard volumes plus service-specific ones
 - name: dir-nuclei-templates
   emptyDir: {}
 {{- end }}
-{{- end }}
-
-{{/*
-=============================================================================
-GO SCANNER PVC TEMPLATE
-=============================================================================
-Renders a PersistentVolumeClaim for scanner logs
-
-Usage:
-  {{- include "cptm8.goScannerPVC" (dict "name" "asmm8" "ctx" .) }}
-*/}}
-{{- define "cptm8.goScannerPVC" -}}
-{{- $name := .name -}}
-{{- $ctx := .ctx -}}
----
-apiVersion: v1
-kind: PersistentVolumeClaim
-metadata:
-  name: {{ $name }}-logs-pvc
-  namespace: {{ include "cptm8.namespace" $ctx }}
-  labels:
-    app: {{ $name }}
-    {{- include "cptm8.labels" $ctx | nindent 4 }}
-spec:
-  accessModes:
-    - ReadWriteOnce
-  storageClassName: {{ $ctx.Values.global.logsStorageClass | default $ctx.Values.global.storageClass }}
-  resources:
-    requests:
-      storage: 1Gi
 {{- end }}

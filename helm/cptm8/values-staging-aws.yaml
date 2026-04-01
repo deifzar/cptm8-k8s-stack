@@ -18,7 +18,7 @@ global:
 
   # AWS ECR Registry
   imageRegistry: 507745009364.dkr.ecr.eu-south-2.amazonaws.com
-  imageTag: staging-latest
+  imageTag: "0.8"
   imagePullPolicy: Always
 
   imagePullSecrets:
@@ -27,9 +27,14 @@ global:
   # Init container image
   initImage: busybox:1.36
 
-  # AWS EBS storage class
-  storageClass: cptm8-staging-ebs
-  logsStorageClass: cptm8-staging-ebs
+  # AWS EBS storage classes
+  storage:
+    # AWS EBS gp3 for all database data
+    primaryClass: cptm8-staging-ebs-gp3
+    # Same class for non-critical data (EBS doesn't need separate class)
+    deleteClass: cptm8-staging-ebs-gp3
+    # EBS for logs (could use EFS for shared access if needed)
+    logsClass: cptm8-staging-ebs-gp3
 
   # Security contexts (same as dev)
   securityContext:
@@ -60,6 +65,14 @@ global:
       limits:
         memory: "4Gi"
         cpu: "2000m"
+  # OpenSearch internal user hashes (bcrypt format)
+  # These are passed to the opensearch subchart via global values
+  # Set actual values in values-secrets-*.yaml.
+  #   The parent chart's values.yaml already has empty placeholders 
+  #   at global.opensearch.adminHash: "" which get overridden by your secrets file during install.
+  opensearch:
+    adminHash: ""
+    kibanaserverHash: ""
 
 # =============================================================================
 # NAMESPACE

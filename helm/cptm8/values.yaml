@@ -8,12 +8,9 @@ global:
   # Environment name
   environment: dev
 
-  # Kubernetes namespace
-  # namespace: cptm8-dev
-
   # Image registry (AWS ECR)
   imageRegistry: 507745009364.dkr.ecr.eu-south-2.amazonaws.com
-  imageTag: dev-latest
+  imageTag: latest
   imagePullPolicy: IfNotPresent
 
   # Image pull secrets
@@ -23,9 +20,15 @@ global:
   # Init container image
   initImage: busybox:1.35
 
-  # Storage class
-  storageClass: cptm8-dev-ssd
-  logsStorageClass: cptm8-dev-logs-shared
+  # Storage classes (matches StorageClass names created in templates/storage/storageclass.yaml)
+  # Override in values-staging-*.yaml for cloud environments
+  storage:
+    # Primary storage class for critical database data (Retain policy)
+    primaryClass: cptm8-dev-ssd-retain
+    # Delete storage class for non-critical/recreatable data (Delete policy)
+    deleteClass: cptm8-dev-ssd-delete
+    # Logs storage class for shared log volumes
+    logsClass: cptm8-dev-log-shared
 
   # Security contexts
   securityContext:
@@ -57,11 +60,21 @@ global:
       limits:
         memory: "512Mi"
         cpu: "500m"
-# =============================================================================
-# NAMESPACE
-# =============================================================================
+
+  # OpenSearch internal user hashes (bcrypt format)
+  # These are passed to the opensearch subchart via global values
+  # Set actual values in values-secrets-*.yaml.
+  #   The parent chart's values.yaml already has empty placeholders 
+  #   at global.opensearch.adminHash: "" which get overridden by your secrets file during install.
+  opensearch:
+    adminHash: ""
+    kibanaserverHash: ""
+
+# =========================================================================================
+# NAMESPACE - Let Helm create it with --create-namespace flag. Leave create as false always
+# =========================================================================================
 namespace:
-  create: true
+  create: false
   annotations: {}
   resourceQuota:
     enabled: false
@@ -368,6 +381,7 @@ mongodb:
   image:
     repository: mongo
     tag: "7.0"
+  replicaCount: 3
   replicaSet:
     name: rs0
   persistence:
@@ -541,11 +555,11 @@ cronjobs:
   ecrTokenRefresher:
     enabled: true
     schedule: "0 */8 * * *"
-    image: amazon/aws-cli:2.34.10
+    image: alpine/k8s:1.29.2
   acrTokenRefresher:
     enabled: false
     schedule: "0 */8 * * *"
-    image: mcr.microsoft.com/azure-cli:2.9.0
+    image: mcr.microsoft.com/azure-cli:2.58.0
 
 # =============================================================================
 # SECRETS CONFIGURATION

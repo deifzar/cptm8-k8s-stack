@@ -23,7 +23,7 @@ global:
 
   # Azure Container Registry
   imageRegistry: cptm8acr.azurecr.io
-  imageTag: staging-latest
+  imageTag: "0.8"
   imagePullPolicy: Always
 
   imagePullSecrets:
@@ -32,9 +32,14 @@ global:
   # Init container image
   initImage: busybox:1.36
 
-  # Azure Premium Disk storage class
-  storageClass: cptm8-staging-azure-premium
-  logsStorageClass: cptm8-staging-azure-premium
+  # Azure Disk storage classes
+  storage:
+    # Azure Premium SSD for critical database data
+    primaryClass: cptm8-staging-azure-premium
+    # Azure Standard SSD for non-critical/recreatable data
+    deleteClass: cptm8-staging-azure-standard
+    # Azure Files for shared log volumes (supports ReadWriteMany)
+    logsClass: cptm8-staging-azure-files
 
   # Security contexts
   securityContext:
@@ -65,6 +70,15 @@ global:
       limits:
         memory: "4Gi"
         cpu: "2000m"
+  
+  # OpenSearch internal user hashes (bcrypt format)
+  # These are passed to the opensearch subchart via global values
+  # Set actual values in values-secrets-*.yaml.
+  #   The parent chart's values.yaml already has empty placeholders 
+  #   at global.opensearch.adminHash: "" which get overridden by your secrets file during install.
+  opensearch:
+    adminHash: ""
+    kibanaserverHash: ""
 
 # =============================================================================
 # NAMESPACE
