@@ -14,7 +14,7 @@ image:
   pullPolicy: IfNotPresent
 
 # Replicas
-replicaCount: 3
+replicaCount: 1
 
 # Replica Set configuration
 replicaSet:

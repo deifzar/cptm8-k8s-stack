@@ -43,17 +43,21 @@ app.kubernetes.io/managed-by: {{ .Release.Service }}
 {{- end }}
 
 {{/*
-Get the storage class
+Get the storage class - uses global.storage.primaryClass for search index data (Retain policy)
 */}}
 {{- define "opensearch.storageClass" -}}
 {{- if .Values.global }}
-{{- if .Values.global.storageClass }}
-{{- .Values.global.storageClass }}
+{{- if .Values.global.storage }}
+{{- if .Values.global.storage.primaryClass }}
+{{- .Values.global.storage.primaryClass }}
 {{- else }}
-{{- .Values.persistence.storageClass | default "standard" }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
 {{- end }}
 {{- else }}
-{{- .Values.persistence.storageClass | default "standard" }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
+{{- end }}
+{{- else }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
 {{- end }}
 {{- end }}
 
@@ -92,4 +96,21 @@ OpenSearch service URL for dashboard
 {{- define "opensearch.serviceUrl" -}}
 {{- $namespace := include "opensearch.namespace" . -}}
 {{- printf "http://opensearch-service.%s.svc.cluster.local:%d" $namespace (int .Values.service.httpPort) }}
+{{- end }}
+
+{{/*
+OpenSearch internal users
+*/}}
+{{- define "opensearch.internalUsers" -}}
+{{- if .Values.initScripts.internalUsers.create }}
+{{- $fileName := .Values.initScripts.internalUsers.filename -}}
+{{- $configMap := .Values.initScripts.internalUsers.configMapName -}}
+- name: opensearch-config-internal-users
+  configMap:
+    name: {{ $configMap }}
+    defaultMode: 0644
+    items:
+      - key: {{ $fileName }}
+        path: {{ $fileName }}
+{{- end }}
 {{- end }}

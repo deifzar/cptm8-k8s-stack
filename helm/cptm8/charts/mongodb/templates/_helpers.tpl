@@ -69,28 +69,40 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Get the storage class
+Get the primary storage class - uses global.storage.primaryClass for critical database data (Retain policy)
 */}}
 {{- define "mongodb.storageClass" -}}
 {{- if .Values.global }}
-{{- if .Values.global.storageClass }}
-{{- .Values.global.storageClass }}
+{{- if .Values.global.storage }}
+{{- if .Values.global.storage.primaryClass }}
+{{- .Values.global.storage.primaryClass }}
 {{- else }}
-{{- .Values.persistence.storageClass | default "standard" }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
 {{- end }}
 {{- else }}
-{{- .Values.persistence.storageClass | default "standard" }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
+{{- end }}
+{{- else }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
 {{- end }}
 {{- end }}
 
 {{/*
-Get the delete storage class (for non-critical data)
+Get the delete storage class - uses global.storage.deleteClass for non-critical/recreatable data (Delete policy)
 */}}
 {{- define "mongodb.storageClassDelete" -}}
-{{- if .Values.persistence.storageClassDelete }}
-{{- .Values.persistence.storageClassDelete }}
+{{- if .Values.global }}
+{{- if .Values.global.storage }}
+{{- if .Values.global.storage.deleteClass }}
+{{- .Values.global.storage.deleteClass }}
 {{- else }}
-{{- include "mongodb.storageClass" . }}-delete
+{{- .Values.persistence.storageClassDelete | default "cptm8-dev-ssd-delete" }}
+{{- end }}
+{{- else }}
+{{- .Values.persistence.storageClassDelete | default "cptm8-dev-ssd-delete" }}
+{{- end }}
+{{- else }}
+{{- .Values.persistence.storageClassDelete | default "cptm8-dev-ssd-delete" }}
 {{- end }}
 {{- end }}
 

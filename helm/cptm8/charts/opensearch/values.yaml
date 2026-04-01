@@ -63,6 +63,14 @@ persistence:
 security:
   disablePlugin: true
   disableDemoConfig: true
+  # Internal users configuration (only used when security plugin is enabled)
+  # Hashes should be bcrypt format ($2a$12$...)
+  # Generate with: python3 -c "import bcrypt; print(bcrypt.hashpw(b'password', bcrypt.gensalt(rounds=12)).decode())"
+  internalUsers:
+    admin:
+      hash: ""  # Set via global.opensearch.adminHash in values-secrets-*.yaml
+    kibanaserver:
+      hash: ""  # Set via global.opensearch.kibanaserverHash in values-secrets-*.yaml
 
 # Init container for sysctl settings
 initSysctl:
@@ -111,7 +119,13 @@ dashboard:
       memory: "1Gi"
       cpu: "500m"
 
+# Init scripts ConfigMap name
+initScripts:
+  internalUsers:
+    create: true
+    configMapName: opensearch-config
+    filename: internal_users.yml
 # Environment variables reference
 env:
-  configMapName: opensearch-config
+  configMapName: 
   secretName: opensearch-secrets

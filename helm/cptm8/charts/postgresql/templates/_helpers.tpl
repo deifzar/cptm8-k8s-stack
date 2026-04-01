@@ -69,16 +69,21 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/*
-Get the storage class - uses global if set, otherwise subchart value
+Get the storage class - uses global.storage.primaryClass if set, otherwise subchart value
+PostgreSQL uses primary storage class for critical database data (Retain policy)
 */}}
 {{- define "postgresql.storageClass" -}}
 {{- if .Values.global }}
-{{- if .Values.global.storageClass }}
-{{- .Values.global.storageClass }}
+{{- if .Values.global.storage }}
+{{- if .Values.global.storage.primaryClass }}
+{{- .Values.global.storage.primaryClass }}
 {{- else }}
-{{- .Values.persistence.storageClass | default "standard" }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
 {{- end }}
 {{- else }}
-{{- .Values.persistence.storageClass | default "standard" }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
+{{- end }}
+{{- else }}
+{{- .Values.persistence.storageClass | default "cptm8-dev-ssd-retain" }}
 {{- end }}
 {{- end }}

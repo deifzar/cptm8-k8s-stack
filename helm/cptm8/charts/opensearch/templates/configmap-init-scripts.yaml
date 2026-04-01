@@ -1,0 +1,48 @@
+{{- if .Values.enabled }}
+{{- if .Values.initScripts.internalUsers.create }}
+{{/*
+Get admin hash from global (parent chart) or subchart values
+*/}}
+{{- $adminHash := "" }}
+{{- if .Values.global }}
+{{- $adminHash = .Values.global.opensearch.adminHash | default .Values.security.internalUsers.admin.hash }}
+{{- else }}
+{{- $adminHash = .Values.security.internalUsers.admin.hash }}
+{{- end }}
+{{/*
+Get kibanaserver hash from global (parent chart) or subchart values
+*/}}
+{{- $kibanaserverHash := "" }}
+{{- if .Values.global }}
+{{- $kibanaserverHash = .Values.global.opensearch.kibanaserverHash | default .Values.security.internalUsers.kibanaserver.hash }}
+{{- else }}
+{{- $kibanaserverHash = .Values.security.internalUsers.kibanaserver.hash }}
+{{- end }}
+# OpenSearch Configuration ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.initScripts.internalUsers.configMapName }}
+  namespace: {{ include "opensearch.namespace" . }}
+  labels:
+    {{- include "opensearch.labels" . | nindent 4 }}
+data:
+  internal_users.yml: |
+    ---
+    _meta:
+      type: "internalusers"
+      config_version: 2
+
+    admin:
+      hash: "{{ $adminHash }}"
+      reserved: true
+      backend_roles:
+      - "admin"
+      description: "admin user"
+
+    kibanaserver:
+      hash: "{{ $kibanaserverHash }}"
+      reserved: true
+      description: "kibanaserver user"
+{{- end }}
+{{- end }}

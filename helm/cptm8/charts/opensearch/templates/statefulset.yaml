@@ -86,8 +86,8 @@ spec:
         volumeMounts:
         - name: data
           mountPath: /usr/share/opensearch/data
-        {{- if $ctx.Values.env.configMapName }}
-        - name: config
+        {{- if $ctx.Values.initScripts.internalUsers.create }}
+        - name: opensearch-config-internal-users
           mountPath: /usr/share/opensearch/config/opensearch-security/internal_users.yml
           subPath: internal_users.yml
           readOnly: true
@@ -118,12 +118,9 @@ spec:
         securityContext:
           {{- toYaml $ctx.Values.securityContext | nindent 10 }}
         {{- end }}
+      {{- if $ctx.Values.initScripts.internalUsers.create }}  
       volumes:
-      {{- if $ctx.Values.env.configMapName }}
-      - name: config
-        configMap:
-          name: {{ $ctx.Values.env.configMapName }}
-          defaultMode: 0644
+      {{- include "opensearch.internalUsers" $ctx | nindent 8 }}
       {{- end }}
   {{- if $ctx.Values.persistence.enabled }}
   volumeClaimTemplates:
