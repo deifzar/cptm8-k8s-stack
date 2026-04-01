@@ -97,12 +97,6 @@ spec:
               echo "========================================="
 
               echo ""
-              echo "Installing kubectl..."
-              curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 2>/dev/null
-              chmod +x kubectl
-              mv kubectl /usr/local/bin/
-
-              echo ""
               echo "Refreshing ECR token..."
               ECR_TOKEN=$(aws ecr get-login-password --region ${AWS_REGION})
 
@@ -240,7 +234,7 @@ spec:
               echo ""
               echo "Installing kubectl..."
               az aks install-cli 2>/dev/null || {
-                curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" 2>/dev/null
+                curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
                 chmod +x kubectl
                 mv kubectl /usr/local/bin/
               }

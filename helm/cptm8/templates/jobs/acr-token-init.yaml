@@ -1,0 +1,164 @@
+{{/*
+=============================================================================
+ACR TOKEN INITIALIZER JOB (Helm Hook)
+=============================================================================
+Runs once after Helm install/upgrade to immediately populate the ACR token.
+This avoids waiting for the CronJob's first scheduled run.
+*/}}
+{{- if .Values.cronjobs.acrTokenRefresher.enabled }}
+{{- $namespace := include "cptm8.namespace" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: acr-token-init
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    tier: job
+    component: registry
+  annotations:
+    # Helm hooks - run after install and upgrade
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        {{- include "cptm8.labels" . | nindent 8 }}
+        component: registry
+        tier: job
+        job: acr-token-init
+    spec:
+      serviceAccountName: {{ .Values.rbac.serviceAccounts.acrTokenRefresher.name | default "acr-token-refresher" }}
+      restartPolicy: OnFailure
+
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+      - name: init-token
+        image: {{ .Values.cronjobs.acrTokenRefresher.image | default "mcr.microsoft.com/azure-cli:latest" }}
+        imagePullPolicy: IfNotPresent
+
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: ACR_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: AZURE_ACR_NAME
+        - name: AZURE_TENANT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-acr-credentials
+              key: azure-tenant-id
+              optional: true
+        - name: AZURE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: azure-acr-credentials
+              key: azure-client-id
+              optional: true
+        - name: AZURE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: azure-acr-credentials
+              key: azure-client-secret
+              optional: true
+
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "========================================="
+          echo "ACR Token Initialization Job (Helm Hook)"
+          echo "========================================="
+          echo "Namespace: ${NAMESPACE}"
+          echo "ACR Name: ${ACR_NAME}"
+          echo "========================================="
+
+          echo ""
+          echo "Installing kubectl..."
+          az aks install-cli 2>/dev/null || {
+            curl -sLO "https://dl.k8s.io/release/$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+            chmod +x kubectl
+            mv kubectl /usr/local/bin/
+          }
+
+          echo ""
+          echo "Logging in to Azure..."
+          if [ -n "$AZURE_CLIENT_ID" ] && [ -n "$AZURE_CLIENT_SECRET" ] && [ -n "$AZURE_TENANT_ID" ]; then
+            # Service Principal authentication
+            az login --service-principal \
+              --username "$AZURE_CLIENT_ID" \
+              --password "$AZURE_CLIENT_SECRET" \
+              --tenant "$AZURE_TENANT_ID" \
+              --output none
+          else
+            # Managed Identity authentication (when running on AKS)
+            az login --identity --output none || {
+              echo "ERROR: Failed to authenticate. Provide service principal credentials or enable managed identity."
+              exit 1
+            }
+          fi
+
+          echo ""
+          echo "Refreshing ACR token..."
+          ACR_TOKEN=$(az acr login --name ${ACR_NAME} --expose-token --output tsv --query accessToken)
+
+          if [ -z "$ACR_TOKEN" ]; then
+            echo "ERROR: Failed to get ACR token"
+            exit 1
+          fi
+
+          echo "Token retrieved successfully"
+
+          echo ""
+          echo "Deleting old secret (if exists)..."
+          kubectl delete secret acr-registry-secret -n ${NAMESPACE} --ignore-not-found=true
+
+          echo ""
+          echo "Creating new secret..."
+          kubectl create secret docker-registry acr-registry-secret \
+            --docker-server=${ACR_NAME}.azurecr.io \
+            --docker-username=00000000-0000-0000-0000-000000000000 \
+            --docker-password="${ACR_TOKEN}" \
+            -n ${NAMESPACE}
+
+          echo ""
+          echo "========================================="
+          echo "ACR token initialized successfully!"
+          echo "Secret: acr-registry-secret"
+          echo "Registry: ${ACR_NAME}.azurecr.io"
+          echo "========================================="
+
+          echo ""
+          echo "Restarting deployments to pick up new credentials..."
+          kubectl rollout restart deployment -n ${NAMESPACE} 2>/dev/null || true
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+{{- end }}

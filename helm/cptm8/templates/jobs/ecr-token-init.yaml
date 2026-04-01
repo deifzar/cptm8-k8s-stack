@@ -1,0 +1,137 @@
+{{/*
+=============================================================================
+ECR TOKEN INITIALIZER JOB (Helm Hook)
+=============================================================================
+Runs once after Helm install/upgrade to immediately populate the ECR token.
+This avoids waiting for the CronJob's first scheduled run.
+*/}}
+{{- if .Values.cronjobs.ecrTokenRefresher.enabled }}
+{{- $namespace := include "cptm8.namespace" . -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ecr-token-init
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "cptm8.labels" . | nindent 4 }}
+    tier: job
+    component: registry
+  annotations:
+    # Helm hooks - run after install and upgrade
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  activeDeadlineSeconds: 300
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels:
+        {{- include "cptm8.labels" . | nindent 8 }}
+        component: registry
+        tier: job
+        job: ecr-token-init
+    spec:
+      serviceAccountName: {{ .Values.rbac.serviceAccounts.ecrTokenRefresher.name }}
+      restartPolicy: OnFailure
+
+      # Security context
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      containers:
+      - name: init-token
+        image: {{ .Values.cronjobs.ecrTokenRefresher.image }}
+        imagePullPolicy: IfNotPresent
+
+        env:
+        - name: NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: AWS_REGION
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: AWS_REGION
+        - name: AWS_ACCOUNT_ID
+          valueFrom:
+            configMapKeyRef:
+              name: cptm8-config
+              key: AWS_ACCOUNT_ID
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-ecr-credentials
+              key: aws-access-key-id
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-ecr-credentials
+              key: aws-secret-access-key
+
+        command:
+        - /bin/sh
+        - -c
+        - |
+          set -e
+          echo "========================================="
+          echo "ECR Token Initialization Job (Helm Hook)"
+          echo "========================================="
+          echo "Namespace: ${NAMESPACE}"
+          echo "Region: ${AWS_REGION}"
+          echo "Account: ${AWS_ACCOUNT_ID}"
+          echo "========================================="
+
+          echo ""
+          echo "Refreshing ECR token..."
+          ECR_TOKEN=$(aws ecr get-login-password --region ${AWS_REGION})
+
+          if [ -z "$ECR_TOKEN" ]; then
+            echo "ERROR: Failed to get ECR token"
+            exit 1
+          fi
+
+          echo "Token retrieved successfully"
+
+          echo ""
+          echo "Deleting old secret (if exists)..."
+          kubectl delete secret ecr-registry-secret -n ${NAMESPACE} --ignore-not-found=true
+
+          echo ""
+          echo "Creating new secret..."
+          kubectl create secret docker-registry ecr-registry-secret \
+            --docker-server=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com \
+            --docker-username=AWS \
+            --docker-password="${ECR_TOKEN}" \
+            -n ${NAMESPACE}
+
+          echo ""
+          echo "========================================="
+          echo "ECR token initialized successfully!"
+          echo "Secret: ecr-registry-secret"
+          echo "Registry: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+          echo "========================================="
+
+          echo ""
+          echo "Restarting deployments to pick up new credentials..."
+          kubectl rollout restart deployment -n ${NAMESPACE} 2>/dev/null || true
+
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+              - ALL
+
+        resources:
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+{{- end }}
